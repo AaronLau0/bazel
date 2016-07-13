@@ -184,7 +184,6 @@ static vector<string> GetArgumentArray() {
   blaze_util::ToLower(&product);
   result.push_back(product + "(" + workspace + ")");
   if (globals->options.batch) {
-    result.push_back("-client");
     result.push_back("-Xms256m");
     result.push_back("-XX:NewRatio=4");
   } else {

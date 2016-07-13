@@ -254,7 +254,7 @@ public final class JavaCompilationHelper extends BaseJavaCompilationHelper {
       .setJarExecutable(
           getRuleContext().getHostConfiguration().getFragment(Jvm.class).getJavaExecutable(),
           getRuleContext().getPrerequisiteArtifact("$genclass", Mode.HOST),
-          ImmutableList.of("-client", GENCLASS_MAX_MEMORY))
+          ImmutableList.of(GENCLASS_MAX_MEMORY))
       .setCommandLine(CustomCommandLine.builder()
           .addExecPath("--manifest_proto", manifestProto)
           .addExecPath("--class_jar", classJar)

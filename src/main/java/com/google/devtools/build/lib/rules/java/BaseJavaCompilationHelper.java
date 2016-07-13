@@ -96,7 +96,7 @@ public class BaseJavaCompilationHelper {
         .setJarExecutable(
             ruleContext.getHostConfiguration().getFragment(Jvm.class).getJavaExecutable(),
             ruleContext.getPrerequisiteArtifact("$singlejar", Mode.HOST),
-            ImmutableList.of("-client", SINGLEJAR_MAX_MEMORY))
+            ImmutableList.of(SINGLEJAR_MAX_MEMORY))
         .setCommandLine(sourceJarCommandLine(outputJar, resources, resourceJars))
         .useParameterFile(ParameterFileType.SHELL_QUOTED)
         .setProgressMessage("Building source jar " + outputJar.prettyPrint())
