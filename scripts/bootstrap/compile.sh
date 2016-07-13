@@ -40,7 +40,8 @@ linux)
   # JAVA_HOME must point to a Java installation.
   JAVA_HOME="${JAVA_HOME:-$(readlink -f $(which javac) | sed 's_/bin/javac__')}"
   if [ "${MACHINE_IS_64BIT}" = 'yes' ]; then
-    PROTOC=${PROTOC:-third_party/protobuf/protoc-linux-x86_64.exe}
+    # Distinguish 64-bit linux machines by MACHINE_TYPE
+    PROTOC=${PROTOC:-third_party/protobuf/protoc-linux-${MACHINE_TYPE}.exe}
     GRPC_JAVA_PLUGIN=${GRPC_JAVA_PLUGIN:-third_party/grpc/protoc-gen-grpc-java-0.13.2-linux-x86_64.exe}
   else
     if [ "${MACHINE_IS_ARM}" = 'yes' ]; then
