@@ -40,6 +40,7 @@ filegroup(
         ":windows_clang": ["protobuf/protoc-mingw.exe"],
         ":darwin": ["protobuf/protoc-osx-x86_32.exe"],
         ":k8": ["protobuf/protoc-linux-x86_64.exe"],
+        ":ppc": ["protobuf/protoc-linux-ppc64le.exe"],
         ":piii": ["protobuf/protoc-linux-x86_32.exe"],
         ":arm": ["protobuf/protoc-linux-arm32.exe"],
         ":freebsd": ["protobuf/protoc-linux-x86_32.exe"],
@@ -487,4 +488,9 @@ config_setting(
 config_setting(
     name = "freebsd",
     values = {"host_cpu": "freebsd"},
+)
+
+config_setting(
+    name = "ppc",
+    values = {"host_cpu": "ppc"},
 )
