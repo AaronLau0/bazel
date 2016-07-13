@@ -540,3 +540,8 @@ config_setting(
     name = "freebsd",
     values = {"host_cpu": "freebsd"},
 )
+
+config_setting(
+    name = "ppc",
+    values = {"host_cpu": "ppc"},
+)

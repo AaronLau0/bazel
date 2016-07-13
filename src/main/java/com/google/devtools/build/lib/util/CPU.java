@@ -27,6 +27,7 @@ public enum CPU {
   X86_64("x86_64", ImmutableSet.of("amd64", "x86_64", "x64")),
   PPC("ppc", ImmutableSet.of("ppc", "ppc64", "ppc64le")),
   ARM("arm", ImmutableSet.of("arm", "armv7l")),
+  PPC("ppc", ImmutableSet.of("power", "ppc64le", "power64be", "ppc")),
   UNKNOWN("unknown", ImmutableSet.<String>of());
 
   private final String canonicalName;

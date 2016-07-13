@@ -86,6 +86,9 @@ MACHINE_IS_64BIT='no'
 if [ "${MACHINE_TYPE}" = 'amd64' -o "${MACHINE_TYPE}" = 'x86_64' ]; then
   MACHINE_IS_64BIT='yes'
 fi
+if [ "${MACHINE_TYPE}" = 'ppc64' -o "${MACHINE_TYPE}" = 'ppc64le' ]; then
+  MACHINE_IS_64BIT='yes'
+fi
 case "${PLATFORM}" in
   darwin)
     if [ "${MACHINE_IS_64BIT}" = 'yes' ]; then
@@ -96,7 +99,8 @@ case "${PLATFORM}" in
     ;;
   *)
     if [ "${MACHINE_IS_64BIT}" = 'yes' ]; then
-      protoc_compiler="${BAZEL_RUNFILES}/third_party/protobuf/protoc-linux-x86_64.exe"
+      # Distinguish 64-bit linux machines by MACHINE_TYPE
+      protoc_compiler="${BAZEL_RUNFILES}/third_party/protobuf/protoc-linux-${MACHINE_TYPE}.exe"
     else
       protoc_compiler="${BAZEL_RUNFILES}/third_party/protobuf/protoc-linux-x86_32.exe"
     fi
