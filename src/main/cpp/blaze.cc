@@ -413,7 +413,6 @@ static vector<string> GetArgumentArray() {
       blaze_util::Dirname(blaze_util::Dirname(globals->jvm_path)),
       &result);
   if (globals->options.batch) {
-    result.push_back("-client");
     result.push_back("-Xms256m");
     result.push_back("-XX:NewRatio=4");
   } else {
