@@ -42,7 +42,7 @@ linux)
   if [ "${MACHINE_IS_64BIT}" = 'yes' ]; then
     # Distinguish 64-bit linux machines by MACHINE_TYPE
     PROTOC=${PROTOC:-third_party/protobuf/protoc-linux-${MACHINE_TYPE}.exe}
-    GRPC_JAVA_PLUGIN=${GRPC_JAVA_PLUGIN:-third_party/grpc/protoc-gen-grpc-java-0.13.2-linux-x86_64.exe}
+    GRPC_JAVA_PLUGIN=${GRPC_JAVA_PLUGIN:-third_party/grpc/protoc-gen-grpc-java-0.13.2-linux-${MACHINE_TYPE}.exe}
   else
     if [ "${MACHINE_IS_ARM}" = 'yes' ]; then
       PROTOC=${PROTOC:-third_party/protobuf/protoc-linux-arm32.exe}
