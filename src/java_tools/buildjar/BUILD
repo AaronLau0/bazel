@@ -54,7 +54,6 @@ java_toolchain(
     ijar = ["//third_party/ijar"],
     javabuilder = ["bootstrap_deploy.jar"],
     javac = ["//third_party/java/jdk/langtools:javac_jar"],
-    jvm_opts = ["-client"],
     singlejar = ["//src/java_tools/singlejar:bootstrap_deploy.jar"],
     source_version = "8",
     target_version = "8",

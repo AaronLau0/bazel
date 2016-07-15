@@ -124,7 +124,6 @@ java_toolchain(
     ijar = ["@bazel_tools//tools/jdk:ijar"],
     javabuilder = ["//tools/jdk:JavaBuilder_deploy.jar"],
     javac = ["//third_party/java/jdk/langtools:javac_jar"],
-    jvm_opts = ["-client"],
     singlejar = ["//tools/jdk:SingleJar_deploy.jar"],
     source_version = "8",
     target_version = "8",
