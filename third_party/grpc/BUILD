@@ -25,6 +25,7 @@ filegroup(
         "//third_party:piii": ["protoc-gen-grpc-java-0.13.2-linux-x86_32.exe"],
         "//third_party:arm": ["protoc-gen-grpc-java-0.13.2-linux-x86_32.exe"],
         "//third_party:freebsd": ["protoc-gen-grpc-java-0.13.2-linux-x86_32.exe"],
+        "//third_party:ppc": ["protoc-gen-grpc-java-0.13.2-linux-ppc64le.exe"],
     }),
 )
 

@@ -416,16 +416,8 @@ java_import(
     jars = ["plexus_utils/plexus-utils-3.0.21.jar"],
 )
 
-java_import(
-    name = "protobuf",
-    jars = ["protobuf/protobuf-java-3.0.0-beta-2.jar"],
-)
 
 # For bootstrapping JavaBuilder
-filegroup(
-    name = "protobuf-jars",
-    srcs = ["protobuf/protobuf-java-3.0.0-beta-2.jar"],
-)
 
 java_import(
     name = "slf4j",
