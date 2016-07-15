@@ -39,7 +39,6 @@ if [ "${JAVA_VERSION}" = "1.7" ]; then
 else
   : ${BAZEL_ARGS:=--java_toolchain=//src/java_tools/buildjar:bootstrap_toolchain \
         --host_java_toolchain=//src/java_tools/buildjar:bootstrap_toolchain \
-        --strategy=Javac=worker --worker_quit_after_build \
         --genrule_strategy=standalone --spawn_strategy=standalone \
         "${EXTRA_BAZEL_ARGS:-}"}
 fi
