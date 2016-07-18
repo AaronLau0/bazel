@@ -41,18 +41,6 @@ filegroup(
     ],
 )
 
-# Filegroup to ship the sources to the Bazel embededded tools
-# This filegroup should contains all GPL with classpath exception
-# and LGPL code that we use in Bazel.
-filegroup(
-    name = "gpl-srcs",
-    srcs = [
-        "//third_party/checker_framework_dataflow:srcs",
-        "//third_party/checker_framework_javacutil:srcs",
-        "//third_party/jformatstring:srcs",
-    ],
-)
-
 filegroup(
     name = "d3-js",
     srcs = glob(["javascript/d3/**/*.js"]),
