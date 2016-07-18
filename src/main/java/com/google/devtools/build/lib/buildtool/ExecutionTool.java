@@ -13,6 +13,9 @@
 // limitations under the License.
 package com.google.devtools.build.lib.buildtool;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.base.Stopwatch;
@@ -52,12 +55,14 @@ import com.google.devtools.build.lib.analysis.BuildView;
 import com.google.devtools.build.lib.analysis.BuildView.AnalysisResult;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.SymlinkTreeActionContext;
+import com.google.devtools.build.lib.analysis.TopLevelArtifactContext;
 import com.google.devtools.build.lib.analysis.TopLevelArtifactHelper;
 import com.google.devtools.build.lib.analysis.WorkspaceStatusAction;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.analysis.config.BuildConfigurationCollection;
 import com.google.devtools.build.lib.buildtool.buildevent.ExecutionPhaseCompleteEvent;
 import com.google.devtools.build.lib.buildtool.buildevent.ExecutionStartingEvent;
+import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.events.EventHandler;
 import com.google.devtools.build.lib.events.EventKind;
@@ -103,7 +108,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -247,17 +251,14 @@ public class ExecutionTool {
       }
     }
 
-    // If tests are to be run during build, too, we have to explicitly load the test action context.
-    if (request.shouldRunTests()) {
-      String testStrategyValue = request.getOptions(ExecutionOptions.class).testStrategy;
-      ActionContext context = strategyConverter.getStrategy(TestActionContext.class,
-          testStrategyValue);
-      if (context == null) {
-        throw makeExceptionForInvalidStrategyValue(testStrategyValue, "test",
-            strategyConverter.getValidValues(TestActionContext.class));
-      }
-      strategies.add(context);
+    String testStrategyValue = request.getOptions(ExecutionOptions.class).testStrategy;
+    ActionContext context = strategyConverter.getStrategy(TestActionContext.class,
+        testStrategyValue);
+    if (context == null) {
+      throw makeExceptionForInvalidStrategyValue(testStrategyValue, "test",
+          strategyConverter.getValidValues(TestActionContext.class));
     }
+    strategies.add(context);
   }
 
   private static ImmutableList<ActionContextConsumer> getActionContextConsumersFromModules(
@@ -336,7 +337,8 @@ public class ExecutionTool {
   void executeBuild(UUID buildId, AnalysisResult analysisResult,
       BuildResult buildResult,
       BuildConfigurationCollection configurations,
-      ImmutableMap<PathFragment, Path> packageRoots)
+      ImmutableMap<PackageIdentifier, Path> packageRoots,
+      TopLevelArtifactContext topLevelArtifactContext)
       throws BuildFailedException, InterruptedException, TestExecException, AbruptExitException {
     Stopwatch timer = Stopwatch.createStarted();
     prepare(packageRoots);
@@ -438,7 +440,8 @@ public class ExecutionTool {
           executor,
           builtTargets,
           request.getBuildOptions().explanationPath != null,
-          env.getBlazeWorkspace().getLastExecutionTimeRange());
+          env.getBlazeWorkspace().getLastExecutionTimeRange(),
+          topLevelArtifactContext);
       buildCompleted = true;
     } catch (BuildFailedException | TestExecException e) {
       buildCompleted = true;
@@ -496,7 +499,7 @@ public class ExecutionTool {
     }
   }
 
-  private void prepare(ImmutableMap<PathFragment, Path> packageRoots)
+  private void prepare(ImmutableMap<PackageIdentifier, Path> packageRoots)
       throws ExecutorInitException {
     // Prepare for build.
     Profiler.instance().markPhase(ProfilePhase.PREPARE);
@@ -505,7 +508,12 @@ public class ExecutionTool {
     createActionLogDirectory();
 
     // Plant the symlink forest.
-    plantSymlinkForest(packageRoots);
+    try {
+      new SymlinkForest(
+          packageRoots, getExecRoot(), runtime.getProductName()).plantSymlinkForest();
+    } catch (IOException e) {
+      throw new ExecutorInitException("Source forest creation failed", e);
+    }
   }
 
   private void createToolsSymlinks() throws ExecutorInitException {
@@ -513,17 +521,6 @@ public class ExecutionTool {
       env.getBlazeWorkspace().getBinTools().setupBuildTools();
     } catch (ExecException e) {
       throw new ExecutorInitException("Tools symlink creation failed", e);
-    }
-  }
-
-  private void plantSymlinkForest(ImmutableMap<PathFragment, Path> packageRoots)
-      throws ExecutorInitException {
-    try {
-      FileSystemUtils.deleteTreesBelowNotPrefixed(getExecRoot(),
-          new String[] { ".", "_", runtime.getProductName() + "-"});
-      FileSystemUtils.plantLinkForest(packageRoots, getExecRoot(), runtime.getProductName());
-    } catch (IOException e) {
-      throw new ExecutorInitException("Source forest creation failed", e);
     }
   }
 
@@ -641,7 +638,7 @@ public class ExecutionTool {
       }
     }
     env.getEventBus().post(
-        new ExecutionPhaseCompleteEvent(timer.stop().elapsed(TimeUnit.MILLISECONDS)));
+        new ExecutionPhaseCompleteEvent(timer.stop().elapsed(MILLISECONDS)));
     return successfulTargets;
   }
 
@@ -716,7 +713,7 @@ public class ExecutionTool {
    */
   private void saveCaches(ActionCache actionCache) {
     long actionCacheSizeInBytes = 0;
-    long actionCacheSaveTime;
+    long actionCacheSaveTimeInMs;
 
     AutoProfiler p = AutoProfiler.profiledAndLogged("Saving action cache", ProfilerTask.INFO, LOG);
     try {
@@ -724,10 +721,11 @@ public class ExecutionTool {
     } catch (IOException e) {
       getReporter().handle(Event.error("I/O error while writing action log: " + e.getMessage()));
     } finally {
-      actionCacheSaveTime = p.completeAndGetElapsedTimeNanos();
+      actionCacheSaveTimeInMs =
+          MILLISECONDS.convert(p.completeAndGetElapsedTimeNanos(), NANOSECONDS);
     }
     env.getEventBus().post(new CachesSavedEvent(
-        actionCacheSaveTime, actionCacheSizeInBytes));
+        actionCacheSaveTimeInMs, actionCacheSizeInBytes));
   }
 
   private ActionInputFileCache createBuildSingleFileCache(Path execRoot) {

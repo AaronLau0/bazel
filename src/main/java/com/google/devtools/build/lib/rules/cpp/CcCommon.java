@@ -83,6 +83,8 @@ public final class CcCommon {
    * Features we request to enable unless a rule explicitly doesn't support them.
    */
   private static final ImmutableSet<String> DEFAULT_FEATURES = ImmutableSet.of(
+      CppRuleClasses.DEPENDENCY_FILE,
+      CppRuleClasses.COMPILE_ACTION_FLAGS_IN_FLAG_SET,
       CppRuleClasses.RANDOM_SEED,
       CppRuleClasses.MODULE_MAPS,
       CppRuleClasses.MODULE_MAP_HOME_CWD,
@@ -495,7 +497,16 @@ public final class CcCommon {
         ? InstrumentedFilesProviderImpl.EMPTY
         : InstrumentedFilesCollector.collect(
             ruleContext, CppRuleClasses.INSTRUMENTATION_SPEC, CC_METADATA_COLLECTOR, files,
+            CppHelper.getGcovFilesIfNeeded(ruleContext),
             withBaselineCoverage);
+  }
+
+  private static String getHostOrNonHostFeature(RuleContext ruleContext) {
+    if (ruleContext.getConfiguration().isHostConfiguration()) {
+      return "host";
+    } else {
+      return "nonhost";
+    }
   }
 
   /**
@@ -527,9 +538,12 @@ public final class CcCommon {
     }
     Set<String> unsupportedFeatures = unsupportedFeaturesBuilder.build();
     ImmutableSet.Builder<String> requestedFeatures = ImmutableSet.builder();
-    for (String feature : Iterables.concat(
-        ImmutableSet.of(toolchain.getCompilationMode().toString()), DEFAULT_FEATURES,
-        ruleContext.getFeatures())) {
+    for (String feature :
+        Iterables.concat(
+            ImmutableSet.of(toolchain.getCompilationMode().toString()),
+            ImmutableSet.of(getHostOrNonHostFeature(ruleContext)),
+            DEFAULT_FEATURES,
+            ruleContext.getFeatures())) {
       if (!unsupportedFeatures.contains(feature)) {
         requestedFeatures.add(feature);
       }

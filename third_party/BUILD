@@ -25,6 +25,19 @@ filegroup(
         "//third_party/py/mock:srcs",
         "//third_party/py/six:srcs",
         "//third_party/zlib:srcs",
+        "//third_party/nanopb:srcs",
+    ],
+)
+
+# Filegroup to ship the sources to the Bazel embededded tools
+# This filegroup should contains all GPL with classpath exception
+# and LGPL code that we use in Bazel.
+filegroup(
+    name = "gpl-srcs",
+    srcs = [
+        "//third_party/checker_framework_dataflow:srcs",
+        "//third_party/checker_framework_javacutil:srcs",
+        "//third_party/jformatstring:srcs",
     ],
 )
 
@@ -242,17 +255,17 @@ java_plugin(
 
 java_import(
     name = "dagger_api",
-    jars = ["dagger/dagger-2.4.jar"],
+    jars = ["dagger/dagger-2.5.jar"],
 )
 
 java_import(
     name = "dagger_compiler",
-    jars = ["dagger/dagger-compiler-2.4.jar"],
+    jars = ["dagger/dagger-compiler-2.5.jar"],
 )
 
 java_import(
     name = "dagger_producers",
-    jars = ["dagger/dagger-producers-2.4.jar"],
+    jars = ["dagger/dagger-producers-2.5.jar"],
 )
 
 java_import(
@@ -273,8 +286,8 @@ java_import(
 java_import(
     name = "hazelcast",
     jars = [
-        "hazelcast/hazelcast-3.5.4.jar",
-        "hazelcast/hazelcast-client-3.5.4.jar",
+        "hazelcast/hazelcast-3.6.4.jar",
+        "hazelcast/hazelcast-client-3.6.4.jar",
     ],
 )
 
@@ -328,15 +341,6 @@ filegroup(
 java_import(
     name = "guava",
     jars = ["guava/guava-19.0.jar"],
-)
-
-java_import(
-    name = "guice",
-    jars = [
-        "guice/guice-4.0-no_aop.jar",
-        "guice/guice-multibindings-4.0.jar",
-        "jsr330_inject/javax.inject.jar",
-    ],
 )
 
 # For bootstrapping JavaBuilder

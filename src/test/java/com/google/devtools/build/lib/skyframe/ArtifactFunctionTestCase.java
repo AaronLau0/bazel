@@ -17,9 +17,8 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.devtools.build.lib.actions.Action;
+import com.google.devtools.build.lib.actions.ActionAnalysisMetadata;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
-import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.pkgcache.PathPackageLocator;
 import com.google.devtools.build.lib.skyframe.ActionLookupValue.ActionLookupKey;
 import com.google.devtools.build.lib.testutil.TestConstants;
@@ -54,7 +53,7 @@ abstract class ArtifactFunctionTestCase {
 
   protected Predicate<PathFragment> allowedMissingInputsPredicate = Predicates.alwaysFalse();
 
-  protected Set<Action> actions;
+  protected Set<ActionAnalysisMetadata> actions;
   protected boolean fastDigest = false;
   protected RecordingDifferencer differencer = new RecordingDifferencer();
   protected SequentialBuildDriver driver;
@@ -98,9 +97,13 @@ abstract class ArtifactFunctionTestCase {
                     SkyFunctions.WORKSPACE_FILE,
                     new WorkspaceFileFunction(
                         TestRuleClassProvider.getRuleClassProvider(),
-                        new PackageFactory(TestRuleClassProvider.getRuleClassProvider()),
+                        TestConstants.PACKAGE_FACTORY_FACTORY_FOR_TESTING.create(
+                            TestRuleClassProvider.getRuleClassProvider(),
+                            root.getFileSystem()),
                         directories))
                 .put(SkyFunctions.EXTERNAL_PACKAGE, new ExternalPackageFunction())
+                .put(SkyFunctions.ACTION_TEMPLATE_EXPANSION,
+                     new ActionTemplateExpansionFunction())
                 .build(),
             differencer);
     driver = new SequentialBuildDriver(evaluator);

@@ -15,8 +15,8 @@
 package com.google.devtools.build.lib.rules.cpp;
 
 import com.google.common.base.Function;
+import com.google.common.base.Joiner;
 import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -42,6 +42,7 @@ import com.google.devtools.build.lib.rules.cpp.CcToolchainFeatures.Variables.Var
 import com.google.devtools.build.lib.rules.cpp.CppConfiguration.HeadersCheckingMode;
 import com.google.devtools.build.lib.rules.cpp.Link.LinkTargetType;
 import com.google.devtools.build.lib.rules.cpp.LinkerInputs.LibraryToLink;
+import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.util.FileTypeSet;
 import com.google.devtools.build.lib.util.Pair;
 import com.google.devtools.build.lib.util.Preconditions;
@@ -118,7 +119,6 @@ public final class CcLibraryHelper {
             CppCompileAction.OBJCPP_COMPILE,
             CppCompileAction.CPP_HEADER_PARSING,
             CppCompileAction.CPP_HEADER_PREPROCESSING,
-            CppCompileAction.CPP_MODULE_COMPILE,
             CppCompileAction.ASSEMBLE,
             CppCompileAction.PREPROCESS_ASSEMBLE,
             Link.LinkTargetType.STATIC_LIBRARY.getActionName(),
@@ -243,12 +243,12 @@ public final class CcLibraryHelper {
   private final List<Artifact> publicTextualHeaders = new ArrayList<>();
   private final List<Artifact> privateHeaders = new ArrayList<>();
   private final List<PathFragment> additionalExportedHeaders = new ArrayList<>();
-  private final List<Pair<Artifact, Label>> compilationUnitSources = new ArrayList<>();
+  private final Set<CppSource> compilationUnitSources = new LinkedHashSet<>();
   private final List<Artifact> objectFiles = new ArrayList<>();
   private final List<Artifact> picObjectFiles = new ArrayList<>();
   private final List<String> copts = new ArrayList<>();
-  @Nullable private Pattern nocopts;
   private final List<String> linkopts = new ArrayList<>();
+  @Nullable private Pattern nocopts;
   private final Set<String> defines = new LinkedHashSet<>();
   private final List<TransitiveInfoCollection> implementationDeps = new ArrayList<>();
   private final List<TransitiveInfoCollection> interfaceDeps = new ArrayList<>();
@@ -257,6 +257,7 @@ public final class CcLibraryHelper {
   private final List<PathFragment> looseIncludeDirs = new ArrayList<>();
   private final List<PathFragment> systemIncludeDirs = new ArrayList<>();
   private final List<PathFragment> includeDirs = new ArrayList<>();
+  
   @Nullable private Artifact dynamicLibrary;
   private LinkTargetType linkType = LinkTargetType.STATIC_LIBRARY;
   private HeadersCheckingMode headersCheckingMode = HeadersCheckingMode.LOOSE;
@@ -274,8 +275,9 @@ public final class CcLibraryHelper {
   private boolean emitDynamicLibrary = true;
   private boolean checkDepsGenerateCpp = true;
   private boolean emitCompileProviders;
-  private SourceCategory sourceCatagory;
+  private final SourceCategory sourceCategory;
   private List<VariablesExtension> variablesExtensions = new ArrayList<>();
+  @Nullable private CppModuleMap injectedCppModuleMap;
   
   private final FeatureConfiguration featureConfiguration;
 
@@ -296,7 +298,7 @@ public final class CcLibraryHelper {
     this.configuration = ruleContext.getConfiguration();
     this.semantics = Preconditions.checkNotNull(semantics);
     this.featureConfiguration = Preconditions.checkNotNull(featureConfiguration);
-    this.sourceCatagory = Preconditions.checkNotNull(sourceCatagory);
+    this.sourceCategory = Preconditions.checkNotNull(sourceCatagory);
   }
 
   public CcLibraryHelper(
@@ -393,30 +395,45 @@ public final class CcLibraryHelper {
   }
 
   /**
-   * Add the corresponding files as source files. These may also be header files, in which case
-   * they will not be compiled, but also not made visible as includes to dependent rules.
+   * Add the corresponding files as source files. These may also be header files, in which case they
+   * will not be compiled, but also not made visible as includes to dependent rules. The given build
+   * variables will be added to those used for compiling this source.
+   */
+  public CcLibraryHelper addSources(
+      Collection<Artifact> sources, Map<String, String> buildVariables) {
+    Preconditions.checkNotNull(buildVariables);
+    for (Artifact source : sources) {
+      addSource(source, ruleContext.getLabel(), buildVariables);
+    }
+    return this;
+  }
+  
+  /**
+   * Add the corresponding files as source files. These may also be header files, in which case they
+   * will not be compiled, but also not made visible as includes to dependent rules. The given
+   * sources will be built without extra, source-specific build variables.
    */
   public CcLibraryHelper addSources(Collection<Artifact> sources) {
-    for (Artifact source : sources) {
-      addSource(source, ruleContext.getLabel());
-    }
+    addSources(sources, ImmutableMap.<String, String>of());
     return this;
   }
 
   /**
-   * Add the corresponding files as source files. These may also be header files, in which case
-   * they will not be compiled, but also not made visible as includes to dependent rules.
+   * Add the corresponding files as source files. These may also be header files, in which case they
+   * will not be compiled, but also not made visible as includes to dependent rules. The given
+   * sources will be built without extra, source-specific build variables.
    */
   public CcLibraryHelper addSources(Iterable<Pair<Artifact, Label>> sources) {
     for (Pair<Artifact, Label> source : sources) {
-      addSource(source.first, source.second);
+      addSource(source.first, source.second, ImmutableMap.<String, String>of());
     }
     return this;
   }
 
   /**
-   * Add the corresponding files as source files. These may also be header files, in which case
-   * they will not be compiled, but also not made visible as includes to dependent rules.
+   * Add the corresponding files as source files. These may also be header files, in which case they
+   * will not be compiled, but also not made visible as includes to dependent rules. The given
+   * sources will be built without extra, source-specific build variables.
    */
   public CcLibraryHelper addSources(Artifact... sources) {
     return addSources(Arrays.asList(sources));
@@ -433,24 +450,26 @@ public final class CcLibraryHelper {
     if (isTextualInclude || !isHeader || !shouldProcessHeaders()) {
       return;
     }
-    compilationUnitSources.add(Pair.of(header, label));
+    compilationUnitSources.add(CppSource.create(header, label, ImmutableMap.<String, String>of()));
   }
 
   /**
    * Adds a source to {@code compilationUnitSources} if it is a compiled file type (including
-   * parsed/preprocessed header) and to {@code privateHeaders} if it is a header.
+   * parsed/preprocessed header) and to {@code privateHeaders} if it is a header. The given build
+   * variables will be added to those used for compiling this source.
    */
-  private void addSource(Artifact source, Label label) {
+  private void addSource(Artifact source, Label label, Map<String, String> buildVariables) {
+    Preconditions.checkNotNull(featureConfiguration);
     boolean isHeader = CppFileTypes.CPP_HEADER.matches(source.getExecPath());
     boolean isTextualInclude = CppFileTypes.CPP_TEXTUAL_INCLUDE.matches(source.getExecPath());
-    boolean isCompiledSource = sourceCatagory.getSourceTypes().matches(source.getExecPathString());
+    boolean isCompiledSource = sourceCategory.getSourceTypes().matches(source.getExecPathString());
     if (isHeader || isTextualInclude) {
       privateHeaders.add(source);
     }
     if (isTextualInclude || !isCompiledSource || (isHeader && !shouldProcessHeaders())) {
       return;
     }
-    compilationUnitSources.add(Pair.of(source, label));
+    compilationUnitSources.add(CppSource.create(source, label, buildVariables));
   }
 
   private boolean shouldProcessHeaders() {
@@ -459,11 +478,13 @@ public final class CcLibraryHelper {
   }
 
   /**
-   * Returns the compilation unit sources. That includes all compiled source files as well
-   * as headers that will be parsed or preprocessed.
+   * Returns the compilation unit sources. That includes all compiled source files as well as
+   * headers that will be parsed or preprocessed. Each source file contains the label it arises from
+   * in the build graph as well as {@code FeatureConfiguration} that should be used during its
+   * compilation.
    */
-  public ImmutableList<Pair<Artifact, Label>> getCompilationUnitSources() {
-    return ImmutableList.copyOf(this.compilationUnitSources);
+  public ImmutableSet<CppSource> getCompilationUnitSources() {
+    return ImmutableSet.copyOf(this.compilationUnitSources);
   }
 
   /**
@@ -685,6 +706,15 @@ public final class CcLibraryHelper {
   }
   
   /**
+   * Sets the module map artifact for this build.
+   */
+  public CcLibraryHelper setCppModuleMap(CppModuleMap cppModuleMap) {
+    Preconditions.checkNotNull(cppModuleMap);
+    this.injectedCppModuleMap = cppModuleMap;
+    return this;
+  }
+  
+  /**
    * Overrides the path for the generated dynamic library - this should only be called if the
    * dynamic library is an implicit or explicit output of the rule, i.e., if it is accessible by
    * name from other rules in the same package. Set to {@code null} to use the default computation.
@@ -884,14 +914,50 @@ public final class CcLibraryHelper {
     CcLinkingOutputs originalLinkingOutputs = ccLinkingOutputs;
     if (!(
         staticLibraries.isEmpty() && picStaticLibraries.isEmpty() && dynamicLibraries.isEmpty())) {
+
+      CcLinkingOutputs.Builder newOutputsBuilder = new CcLinkingOutputs.Builder();
+      if (!ccOutputs.isEmpty()) {
+        // Add the linked outputs of this rule iff we had anything to put in them, but then
+        // make sure we're not colliding with some library added from the inputs.
+        newOutputsBuilder.merge(originalLinkingOutputs);
+        Iterable<LibraryToLink> allLibraries =
+            Iterables.concat(staticLibraries, picStaticLibraries, dynamicLibraries);
+        for (LibraryToLink precompiledLibrary : allLibraries) {
+          List<LibraryToLink> matchingLibs =
+              originalLinkingOutputs.getLibrariesWithSameIdentifierAs(precompiledLibrary);
+          if (!matchingLibs.isEmpty()) {
+            Iterable<String> matchingLibArtifactNames =
+                Iterables.transform(
+                    matchingLibs,
+                    new Function<LibraryToLink, String>() {
+                      @Override
+                      public String apply(LibraryToLink input) {
+                        return input.getOriginalLibraryArtifact().getFilename();
+                      }
+                    });
+            ruleContext.ruleError(
+                "Can't put "
+                    + precompiledLibrary.getArtifact().getFilename()
+                    + " into the srcs of a "
+                    + ruleContext.getRuleClassNameForLogging()
+                    + " with the same name ("
+                    + ruleContext.getRule().getName()
+                    + ") which also contains other code or objects to link; it shares a name with "
+                    + Joiner.on(", ").join(matchingLibArtifactNames)
+                    + " (output compiled and linked from the non-library sources of this rule), "
+                    + "which could cause confusion");
+          }
+        }
+      }
+
       // Merge the pre-compiled libraries (static & dynamic) into the linker outputs.
-      ccLinkingOutputs = new CcLinkingOutputs.Builder()
-          .merge(ccLinkingOutputs)
-          .addStaticLibraries(staticLibraries)
-          .addPicStaticLibraries(picStaticLibraries)
-          .addDynamicLibraries(dynamicLibraries)
-          .addExecutionDynamicLibraries(dynamicLibraries)
-          .build();
+      ccLinkingOutputs =
+          newOutputsBuilder
+              .addStaticLibraries(staticLibraries)
+              .addPicStaticLibraries(picStaticLibraries)
+              .addDynamicLibraries(dynamicLibraries)
+              .addExecutionDynamicLibraries(dynamicLibraries)
+              .build();
     }
 
     DwoArtifactsCollector dwoArtifacts =
@@ -910,6 +976,11 @@ public final class CcLibraryHelper {
         dwoArtifacts.getDwoArtifacts(), dwoArtifacts.getPicDwoArtifacts()));
     providers.put(TransitiveLipoInfoProvider.class, collectTransitiveLipoInfo(ccOutputs));
     Map<String, NestedSet<Artifact>> outputGroups = new TreeMap<>();
+
+    if (shouldAddLinkerOutputArtifacts(ruleContext, ccOutputs)) {
+      addLinkerOutputArtifacts(outputGroups);
+    }
+
     outputGroups.put(OutputGroupProvider.TEMP_FILES, getTemps(ccOutputs));
     if (emitCompileProviders) {
       boolean isLipoCollector =
@@ -943,6 +1014,42 @@ public final class CcLibraryHelper {
     }
     return new Info(providers, outputGroups, ccOutputs, ccLinkingOutputs, originalLinkingOutputs,
         cppCompilationContext);
+  }
+
+  /**
+   * Returns true if the appropriate attributes for linker output artifacts are defined, and either
+   * the compile action produces object files or the build is configured to produce an archive or
+   * dynamic library even in the absense of object files.
+   */
+  private boolean shouldAddLinkerOutputArtifacts(
+      RuleContext ruleContext, CcCompilationOutputs ccOutputs) {
+    return (ruleContext.attributes().has("alwayslink", Type.BOOLEAN)
+        && ruleContext.attributes().has("linkstatic", Type.BOOLEAN)
+        && (emitLinkActionsIfEmpty || !ccOutputs.isEmpty()));
+  }
+
+  /**
+   * Adds linker output artifacts to the given map, to be registered on the configured target as
+   * output groups.
+   */
+  private void addLinkerOutputArtifacts(Map<String, NestedSet<Artifact>> outputGroups) {
+    NestedSetBuilder<Artifact> archiveFile = new NestedSetBuilder<>(Order.STABLE_ORDER);
+    NestedSetBuilder<Artifact> dynamicLibrary = new NestedSetBuilder<>(Order.STABLE_ORDER);
+
+    if (ruleContext.attributes().get("alwayslink", Type.BOOLEAN)) {
+      archiveFile.add(
+          CppHelper.getLinkedArtifact(ruleContext, Link.LinkTargetType.ALWAYS_LINK_STATIC_LIBRARY));
+    } else {
+      archiveFile.add(CppHelper.getLinkedArtifact(ruleContext, Link.LinkTargetType.STATIC_LIBRARY));
+    }
+
+    if (CppRuleClasses.shouldCreateDynamicLibrary(ruleContext.attributes())) {
+      dynamicLibrary.add(
+          CppHelper.getLinkedArtifact(ruleContext, Link.LinkTargetType.DYNAMIC_LIBRARY));
+    }
+
+    outputGroups.put("archive", archiveFile.build());
+    outputGroups.put("dynamic_library", dynamicLibrary.build());
   }
 
   /**
@@ -1031,24 +1138,24 @@ public final class CcLibraryHelper {
     }
 
     if (featureConfiguration.isEnabled(CppRuleClasses.MODULE_MAPS)) {
-      CppModuleMap cppModuleMap = CppHelper.addCppModuleMapToContext(ruleContext, contextBuilder);
-      // TODO(bazel-team): addCppModuleMapToContext second-guesses whether module maps should
-      // actually be enabled, so we need to double-check here. Who would write code like this?
-      if (cppModuleMap != null) {
-        CppModuleMapAction action =
-            new CppModuleMapAction(
-                ruleContext.getActionOwner(),
-                cppModuleMap,
-                privateHeaders,
-                publicHeaders,
-                collectModuleMaps(),
-                additionalExportedHeaders,
-                featureConfiguration.isEnabled(CppRuleClasses.HEADER_MODULES),
-                featureConfiguration.isEnabled(CppRuleClasses.MODULE_MAP_HOME_CWD),
-                featureConfiguration.isEnabled(CppRuleClasses.GENERATE_SUBMODULES),
-                !featureConfiguration.isEnabled(CppRuleClasses.MODULE_MAP_WITHOUT_EXTERN_MODULE));
-        ruleContext.registerAction(action);
-      }
+      CppModuleMap cppModuleMap =
+          injectedCppModuleMap == null
+              ? CppHelper.createDefaultCppModuleMap(ruleContext)
+              : injectedCppModuleMap;
+      contextBuilder.setCppModuleMap(cppModuleMap);
+      CppModuleMapAction action =
+          new CppModuleMapAction(
+              ruleContext.getActionOwner(),
+              cppModuleMap,
+              privateHeaders,
+              publicHeaders,
+              collectModuleMaps(),
+              additionalExportedHeaders,
+              featureConfiguration.isEnabled(CppRuleClasses.HEADER_MODULES),
+              featureConfiguration.isEnabled(CppRuleClasses.MODULE_MAP_HOME_CWD),
+              featureConfiguration.isEnabled(CppRuleClasses.GENERATE_SUBMODULES),
+              !featureConfiguration.isEnabled(CppRuleClasses.MODULE_MAP_WITHOUT_EXTERN_MODULE));
+      ruleContext.registerAction(action);
       if (model.getGeneratesPicHeaderModule()) {
         contextBuilder.setPicHeaderModule(model.getPicHeaderModule(cppModuleMap.getArtifact()));
       }

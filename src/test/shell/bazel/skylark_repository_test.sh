@@ -318,24 +318,25 @@ function test_skylark_repository_which_and_execute() {
   # Our custom repository rule
   cat >test.bzl <<EOF
 def _impl(repository_ctx):
+  # Symlink so a repository is created
+  repository_ctx.symlink(repository_ctx.path("$repo2"), repository_ctx.path(""))
   bash = repository_ctx.which("bash")
   if bash == None:
     fail("Bash not found!")
   bin = repository_ctx.which("bin.sh")
   if bin == None:
     fail("bin.sh not found!")
-  result = repository_ctx.execute([bash, "--version"])
+  result = repository_ctx.execute([bash, "--version"], 10, {"FOO": "BAR"})
   if result.return_code != 0:
-    fail("Non-zero return code from bash: " + result.return_code)
+    fail("Non-zero return code from bash: " + str(result.return_code))
   if result.stderr != "":
     fail("Non-empty error output: " + result.stderr)
   print(result.stdout)
-  # Symlink so a repository is created
-  repository_ctx.symlink(repository_ctx.path("$repo2"), repository_ctx.path(""))
 repo = repository_rule(implementation=_impl, local=True)
 EOF
 
-  PATH="${PATH}:${PWD}" bazel build @foo//:bar >& $TEST_log || fail "Failed to build"
+  FOO="BAZ" PATH="${PATH}:${PWD}" bazel build @foo//:bar >& $TEST_log \
+      || fail "Failed to build"
   expect_log "version"
 }
 
@@ -344,19 +345,40 @@ function test_skylark_repository_execute_stderr() {
 
   cat >test.bzl <<EOF
 def _impl(repository_ctx):
+  # Symlink so a repository is created
+  repository_ctx.symlink(repository_ctx.path("$repo2"), repository_ctx.path(""))
   result = repository_ctx.execute([str(repository_ctx.which("bash")), "-c", "echo erf >&2; exit 1"])
   if result.return_code != 1:
-    fail("Incorrect return code from bash (should be 1): " + result.return_code)
+    fail("Incorrect return code from bash: %s != 1\n%s" % (result.return_code, result.stderr))
   if result.stdout != "":
     fail("Non-empty output: %s (stderr was %s)" % (result.stdout, result.stderr))
   print(result.stderr)
-  # Symlink so a repository is created
-  repository_ctx.symlink(repository_ctx.path("$repo2"), repository_ctx.path(""))
 repo = repository_rule(implementation=_impl, local=True)
 EOF
 
   bazel build @foo//:bar >& $TEST_log || fail "Failed to build"
   expect_log "erf"
+}
+
+function test_skylark_repository_execute_env_and_workdir() {
+  setup_skylark_repository
+
+  cat >test.bzl <<EOF
+def _impl(repository_ctx):
+  # Symlink so a repository is created
+  repository_ctx.symlink(repository_ctx.path("$repo2"), repository_ctx.path(""))
+  result = repository_ctx.execute(
+    [str(repository_ctx.which("bash")), "-c", "echo PWD=\$PWD TOTO=\$TOTO"],
+    1000000,
+    { "TOTO": "titi" })
+  if result.return_code != 0:
+    fail("Incorrect return code from bash: %s != 0\n%s" % (result.return_code, result.stderr))
+  print(result.stdout)
+repo = repository_rule(implementation=_impl, local=True)
+EOF
+
+  bazel build @foo//:bar >& $TEST_log || fail "Failed to build"
+  expect_log "PWD=$repo2 TOTO=titi"
 }
 
 function test_skylark_repository_environ() {
@@ -526,6 +548,8 @@ def _impl(repository_ctx):
   repository_ctx.download_and_extract(
     "http://localhost:${fileserver_port}/download_and_extract2.zip", "", "")
   repository_ctx.download_and_extract(
+    "http://localhost:${fileserver_port}/download_and_extract1.tar.gz", "some/path")
+  repository_ctx.download_and_extract(
     "http://localhost:${fileserver_port}/download_and_extract3.zip", ".", "${file_sha256}", "", "")
 repo = repository_rule(implementation=_impl, local=False)
 EOF
@@ -537,21 +561,24 @@ EOF
   output_base="$(bazel info output_base)"
   # Test cleanup
   test -e "${output_base}/external/foo/server_dir/download_and_extract1.tar.gz" \
-    && fail "temp file is not deleted successfully" || true
+    && fail "temp file was not deleted successfully" || true
   test -e "${output_base}/external/foo/server_dir/download_and_extract2.zip" \
-    && fail "temp file is not deleted successfully" || true
+    && fail "temp file was not deleted successfully" || true
   test -e "${output_base}/external/foo/server_dir/download_and_extract3.zip" \
-    && fail "temp file is not deleted successfully" || true
+    && fail "temp file was not deleted successfully" || true
   # Test download_and_extract
   diff "${output_base}/external/foo/server_dir/download_and_extract1.txt" \
     "${file_prefix}1.txt" >/dev/null \
-    || fail "download_and_extract1.tar.gz is not extracted successfully"
+    || fail "download_and_extract1.tar.gz was not extracted successfully"
+  diff "${output_base}/external/foo/some/path/server_dir/download_and_extract1.txt" \
+    "${file_prefix}1.txt" >/dev/null \
+    || fail "download_and_extract1.tar.gz was not extracted successfully in some/path"
   diff "${output_base}/external/foo/server_dir/download_and_extract2.txt" \
     "${file_prefix}2.txt" >/dev/null \
-    || fail "download_and_extract2.zip is not extracted successfully"
+    || fail "download_and_extract2.zip was not extracted successfully"
   diff "${output_base}/external/foo/server_dir/download_and_extract3.txt" \
     "${file_prefix}3.txt" >/dev/null \
-    || fail "download_and_extract3.zip is not extracted successfully"
+    || fail "download_and_extract3.zip was not extracted successfully"
 }
 
 # Test native.bazel_version
@@ -630,6 +657,22 @@ EOF
   bazel query //... >& $TEST_log || fail "Failed to build"
   expect_log "existing = True,True"
   expect_log "non_existing = False,False"
+}
+
+function test_build_a_repo() {
+  cat > WORKSPACE <<EOF
+load("//:repo.bzl", "my_repo")
+my_repo(name = "reg")
+EOF
+
+  cat > repo.bzl <<EOF
+def _impl(repository_ctx):
+  pass
+
+my_repo = repository_rule(_impl)
+EOF
+
+  bazel build //external:reg &> $TEST_log || fail "Couldn't build repo"
 }
 
 function tear_down() {

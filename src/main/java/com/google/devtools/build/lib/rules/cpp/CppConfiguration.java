@@ -40,6 +40,7 @@ import com.google.devtools.build.lib.events.EventHandler;
 import com.google.devtools.build.lib.rules.cpp.CppConfigurationLoader.CppConfigurationParameters;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkCallable;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkModule;
+import com.google.devtools.build.lib.skylarkinterface.SkylarkModuleCategory;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -60,12 +61,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * This class represents the C/C++ parts of the {@link BuildConfiguration},
- * including the host architecture, target architecture, compiler version, and
- * a standard library version. It has information about the tools locations and
- * the flags required for compiling.
+ * This class represents the C/C++ parts of the {@link BuildConfiguration}, including the host
+ * architecture, target architecture, compiler version, and a standard library version. It has
+ * information about the tools locations and the flags required for compiling.
  */
-@SkylarkModule(name = "cpp", doc = "A configuration fragment for C++")
+@SkylarkModule(
+  name = "cpp",
+  doc = "A configuration fragment for C++",
+  category = SkylarkModuleCategory.CONFIGURATION_FRAGMENT
+)
 @Immutable
 public class CppConfiguration extends BuildConfiguration.Fragment {
 
@@ -692,6 +696,40 @@ public class CppConfiguration extends BuildConfiguration.Fragment {
       return toolchain;
     }
     try {
+      if (!features.contains("dependency_file")) {
+        // Gcc options:
+        //  -MD turns on .d file output as a side-effect (doesn't imply -E)
+        //  -MM[D] enables user includes only, not system includes
+        //  -MF <name> specifies the dotd file name
+        // Issues:
+        //  -M[M] alone subverts actual .o output (implies -E)
+        //  -M[M]D alone breaks some of the .d naming assumptions
+        // This combination gets user and system includes with specified name:
+        //  -MD -MF <name>
+        TextFormat.merge(""
+            + "feature {"
+            + "  name: 'dependency_file'"
+            + "  flag_set {"
+            + "    action: 'assemble'"
+            + "    action: 'preprocess-assemble'"
+            + "    action: 'c-compile'"
+            + "    action: 'c++-compile'"
+            + "    action: 'c++-module-compile'"
+            + "    action: 'objc-compile'"
+            + "    action: 'objc++-compile'"
+            + "    action: 'c++-header-preprocessing'"
+            + "    action: 'c++-header-parsing'"
+            + "    expand_if_all_available: 'dependency_file'"
+            + "    flag_group {"
+            + "      flag: '-MD'"
+            + "      flag: '-MF'"
+            + "      flag: '%{dependency_file}'"
+            + "    }"
+            + "  }"
+            + "}",
+            toolchainBuilder);
+      }
+
       if (!features.contains("random_seed")) {
         // GCC and Clang give randomized names to symbols which are defined in
         // an anonymous namespace but have external linkage.  To make
@@ -1558,7 +1596,7 @@ public class CppConfiguration extends BuildConfiguration.Fragment {
   }
 
   public boolean isLipoOptimizationOrInstrumentation() {
-    return cppOptions.isLipoOptimizationOrInstrumentation();
+    return cppOptions.isLipoOptimizationOrInstrumentation() && !isLipoContextCollector();
   }
 
   /**
@@ -1962,14 +2000,6 @@ public class CppConfiguration extends BuildConfiguration.Fragment {
   }
 
   @Override
-  public ImmutableList<Label> getGcovLabels() {
-    // TODO(bazel-team): Using a gcov-specific crosstool filegroup here could reduce the number of
-    // inputs significantly. We'd also need to add logic in tools/coverage/collect_coverage.sh to
-    // drop crosstool dependency if metadataFiles does not contain *.gcno artifacts.
-    return ImmutableList.of(crosstoolTop);
-  }
-
-  @Override
   public String getOutputDirectoryName() {
     String lipoSuffix;
     if (getLipoMode() != LipoMode.OFF && !isAutoFdoLipo()) {
@@ -2009,9 +2039,7 @@ public class CppConfiguration extends BuildConfiguration.Fragment {
     // until they're read from the CROSSTOOL. Feed the CROSSTOOL defaults in here.
     return ImmutableMap.<String, Object>of(
         "cpu", getTargetCpu(),
-        "compiler", getCompiler(),
-        "glibc", getTargetLibc()
-    );
+        "compiler", getCompiler());
   }
 
   public PathFragment getFdoInstrument() {
