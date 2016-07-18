@@ -20,6 +20,11 @@ the following steps on an x86_64 machine:
 6. `make`
 7. `cp src/protoc <Bazel tree>/third_party/protobuf/protoc-linux-x86_64.exe` .
 
+To build protoc compiler on 64-bit Linux Power systems, steps are as below:
+
+1. Follow above steps from #1 to #6 for building protoc on power machine.
+2. `cp src/protoc <Bazel tree>/third_party/protobuf/protoc-linux-ppc64le.exe` .
+
 How to update the `src/` directory:
 
 1. `git clone http://github.com/google/protobuf.git`
