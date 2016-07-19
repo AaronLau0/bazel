@@ -22,7 +22,7 @@ the following steps on an x86_64 machine:
 
 To build protoc compiler on 64-bit Linux Power systems, steps are as below:
 
-1. Follow above steps from #1 to #6 for building protoc on x86_64.
+1. Follow above steps from #1 to #6 for building protoc on power machine.
 2. `cp src/protoc <Bazel tree>/third_party/protobuf/protoc-linux-ppc64le.exe` .
 
 How to update the `src/` directory:
