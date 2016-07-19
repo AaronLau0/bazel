@@ -63,8 +63,7 @@ public final class RemoteModule extends BlazeModule {
     RemoteOptions options = buildRequest.getOptions(RemoteOptions.class);
 
     // Don't provide the remote spawn unless at least action cache is initialized.
-    if (actionCache == null
-        && (options.hazelcastNode != null || options.hazelcastClientConfig != null)) {
+    if (actionCache == null && options.hazelcastNode != null) {
       MemcacheActionCache cache =
           new MemcacheActionCache(
               this.env.getDirectories().getExecRoot(),
@@ -89,7 +88,7 @@ public final class RemoteModule extends BlazeModule {
 
   @Override
   public Iterable<Class<? extends OptionsBase>> getCommandOptions(Command command) {
-    return "build".equals(command.name())
+    return command.builds()
         ? ImmutableList.<Class<? extends OptionsBase>>of(RemoteOptions.class)
         : ImmutableList.<Class<? extends OptionsBase>>of();
   }

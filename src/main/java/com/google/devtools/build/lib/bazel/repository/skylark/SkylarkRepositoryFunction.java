@@ -31,6 +31,7 @@ import com.google.devtools.build.lib.syntax.Runtime;
 import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.skyframe.SkyFunction.Environment;
+import com.google.devtools.build.skyframe.SkyFunctionException;
 import com.google.devtools.build.skyframe.SkyFunctionException.Transience;
 import com.google.devtools.build.skyframe.SkyValue;
 
@@ -80,7 +81,7 @@ public class SkylarkRepositoryFunction extends RepositoryFunction {
   @Override
   public SkyValue fetch(
       Rule rule, Path outputDirectory, BlazeDirectories directories, Environment env)
-      throws RepositoryFunctionException, InterruptedException {
+          throws SkyFunctionException, InterruptedException {
     BaseFunction function = rule.getRuleClassObject().getConfiguredTargetFunction();
     try (Mutability mutability = Mutability.create("skylark repository")) {
       com.google.devtools.build.lib.syntax.Environment buildEnv =

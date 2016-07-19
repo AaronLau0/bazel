@@ -56,7 +56,7 @@ public class FsApparatus {
    * does not hold with our usage of Unix filesystems.
    */
   public static FsApparatus newNative() {
-    FileSystem fs = FileSystems.getNativeFileSystem();
+    FileSystem fs = FileSystems.initDefaultAsNative();
     Path wd = fs.getPath(TMP_DIR);
 
     try {

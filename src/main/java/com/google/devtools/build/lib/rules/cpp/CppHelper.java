@@ -20,6 +20,7 @@ import com.google.common.collect.Iterables;
 import com.google.devtools.build.lib.actions.ActionOwner;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.MiddlemanFactory;
+import com.google.devtools.build.lib.actions.Root;
 import com.google.devtools.build.lib.analysis.AnalysisEnvironment;
 import com.google.devtools.build.lib.analysis.AnalysisUtils;
 import com.google.devtools.build.lib.analysis.FileProvider;
@@ -32,7 +33,6 @@ import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.LabelSyntaxException;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
-import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.packages.BuildType;
 import com.google.devtools.build.lib.packages.RuleErrorConsumer;
 import com.google.devtools.build.lib.rules.cpp.CcLinkParams.Linkstamp;
@@ -41,6 +41,7 @@ import com.google.devtools.build.lib.rules.cpp.Link.LinkTargetType;
 import com.google.devtools.build.lib.shell.ShellUtils;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.util.FileTypeSet;
+import com.google.devtools.build.lib.util.IncludeScanningUtil;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.lib.view.config.crosstool.CrosstoolConfig.LipoMode;
@@ -59,8 +60,6 @@ import javax.annotation.Nullable;
  * <p>This class can be used only after the loading phase.
  */
 public class CppHelper {
-  private static final String GREPPED_INCLUDES_SUFFIX = ".includes";
-
   // TODO(bazel-team): should this use Link.SHARED_LIBRARY_FILETYPES?
   public static final FileTypeSet SHARED_LIBRARY_FILETYPES = FileTypeSet.of(
       CppFileTypes.SHARED_LIBRARY,
@@ -223,14 +222,6 @@ public class CppHelper {
         .getFdoSupport();
   }
 
-  public static NestedSet<Artifact> getGcovFilesIfNeeded(RuleContext ruleContext) {
-    if (ruleContext.getConfiguration().isCodeCoverageEnabled()) {
-      return CppHelper.getToolchain(ruleContext).getCrosstool();
-    } else {
-      return NestedSetBuilder.emptySet(Order.STABLE_ORDER);
-    }
-  }
-
   /**
    * This almost trivial method looks up the :cc_toolchain attribute on the rule context, makes sure
    * that it refers to a rule that has a {@link CcToolchainProvider} (gives an error otherwise), and
@@ -309,7 +300,7 @@ public class CppHelper {
         && semantics.needsIncludeScanning(ruleContext)
         && !prerequisite.isSourceArtifact()
         && CPP_FILETYPES.matches(prerequisite.getFilename())) {
-      Artifact scanned = getIncludesOutput(ruleContext, prerequisite);
+      Artifact scanned = getIncludesOutput(ruleContext, semantics, prerequisite);
       ruleContext.registerAction(
           new ExtractInclusionAction(ruleContext.getActionOwner(), prerequisite, scanned));
       return scanned;
@@ -317,11 +308,11 @@ public class CppHelper {
     return null;
   }
 
-  private static Artifact getIncludesOutput(RuleContext ruleContext, Artifact src) {
-    Preconditions.checkArgument(!src.isSourceArtifact(), src);
-    return ruleContext.getShareableArtifact(
-        src.getRootRelativePath().replaceName(src.getFilename() + GREPPED_INCLUDES_SUFFIX),
-        src.getRoot());
+  private static Artifact getIncludesOutput(
+      RuleContext ruleContext, CppSemantics semantics, Artifact src) {
+    Root root = semantics.getGreppedIncludesDirectory(ruleContext);
+    PathFragment relOut = IncludeScanningUtil.getRootRelativeOutputPath(src.getExecPath());
+    return ruleContext.getShareableArtifact(relOut, root);
   }
 
   /**
@@ -427,17 +418,17 @@ public class CppHelper {
     return (dep != null) ? dep.getProvider(LipoContextProvider.class) : null;
   }
 
-  /**
-   * Creates a CppModuleMap object for pure c++ builds.  The module map artifact becomes a
-   * candidate input to a CppCompileAction.
-   */
-  public static CppModuleMap createDefaultCppModuleMap(RuleContext ruleContext) {
+  // Creates CppModuleMap object, and adds it to C++ compilation context.
+  public static CppModuleMap addCppModuleMapToContext(RuleContext ruleContext,
+      CppCompilationContext.Builder contextBuilder) {
     // Create the module map artifact as a genfile.
     Artifact mapFile = ruleContext.getPackageRelativeArtifact(
         ruleContext.getLabel().getName()
             + Iterables.getOnlyElement(CppFileTypes.CPP_MODULE_MAP.getExtensions()),
         ruleContext.getConfiguration().getGenfilesDirectory());
-    return new CppModuleMap(mapFile, ruleContext.getLabel().toString());
+        CppModuleMap moduleMap = new CppModuleMap(mapFile, ruleContext.getLabel().toString());
+    contextBuilder.setCppModuleMap(moduleMap);
+    return moduleMap;
   }
 
   /**

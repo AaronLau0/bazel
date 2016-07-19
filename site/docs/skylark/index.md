@@ -1,12 +1,13 @@
 ---
 layout: documentation
-title: Extensions
+title: Custom Rules
 ---
 
-# Extensions
-Skylark is the name of the extension mechanism in Bazel. It lets you add support
-for new languages and tools by writing [custom build rules](rules.md). You can
-also compose existing rules into [macros](macros.md).
+# Custom rules
+Skylark is the name of the extension mechanism in Bazel. It lets you write
+[custom build rules](rules.md) as well as compose existing ones into
+[macros](macros.md).
+
 
 ## Getting started
 

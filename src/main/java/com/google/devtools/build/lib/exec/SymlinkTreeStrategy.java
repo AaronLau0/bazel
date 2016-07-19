@@ -48,8 +48,7 @@ public final class SymlinkTreeStrategy implements SymlinkTreeActionContext {
       SymlinkTreeAction action,
       ActionExecutionContext actionExecutionContext,
       PathFragment shExecutable,
-      ImmutableMap<String, String> shellEnvironment,
-      boolean enableRunfiles)
+      ImmutableMap<String, String> shellEnvironment)
       throws ActionExecutionException, InterruptedException {
     Executor executor = actionExecutionContext.getExecutor();
     try (AutoProfiler p =
@@ -65,12 +64,7 @@ public final class SymlinkTreeStrategy implements SymlinkTreeActionContext {
               action.isFilesetTree(), helper.getSymlinkTreeRoot());
         } else {
           helper.createSymlinks(
-              action,
-              actionExecutionContext,
-              binTools,
-              shExecutable,
-              shellEnvironment,
-              enableRunfiles);
+              action, actionExecutionContext, binTools, shExecutable, shellEnvironment);
         }
       } catch (ExecException e) {
         throw e.toActionExecutionException(

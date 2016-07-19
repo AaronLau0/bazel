@@ -15,7 +15,6 @@
 package com.google.devtools.build.lib.rules.java;
 
 import static com.google.devtools.build.lib.analysis.config.BuildConfiguration.StrictDepsMode.OFF;
-import static com.google.devtools.build.lib.rules.java.JavaCompilationArgs.ClasspathType.BOTH;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -120,9 +119,9 @@ public final class JavaLibraryHelper {
   }
 
   /**
-   * Creates the compile actions.
+   * Creates the compile actions and providers.
    */
-  public JavaCompilationArgs build(JavaSemantics semantics) {
+  public JavaCompilationArtifacts build(JavaSemantics semantics) {
     Preconditions.checkState(output != null, "must have an output file; use setOutput()");
     JavaTargetAttributes.Builder attributes = new JavaTargetAttributes.Builder(semantics);
     attributes.addSourceJars(sourceJars);
@@ -150,23 +149,7 @@ public final class JavaLibraryHelper {
     helper.createCompileTimeJarAction(output, artifactsBuilder);
     artifactsBuilder.addRuntimeJar(output);
 
-    return JavaCompilationArgs.builder().merge(artifactsBuilder.build()).build();
-  }
-
-  /**
-   * Returns a JavaCompilationArgsProvider that fully encapsulates this compilation, based on the
-   * result of a call to build().
-   * (that is, it contains the compile-time and runtime jars, separated by direct vs transitive
-   * jars).
-   */
-  public JavaCompilationArgsProvider buildCompilationArgsProvider(JavaCompilationArgs directArgs) {
-    JavaCompilationArgs transitiveArgs = JavaCompilationArgs.builder()
-        .addTransitiveArgs(directArgs, BOTH)
-        .addTransitiveDependencies(deps, true /* recursive */)
-            .build();
-
-    return new JavaCompilationArgsProvider(
-        isStrict() ? directArgs : transitiveArgs, transitiveArgs);
+    return artifactsBuilder.build();
   }
 
   private void addDepsToAttributes(JavaTargetAttributes.Builder attributes) {
@@ -174,6 +157,7 @@ public final class JavaLibraryHelper {
     if (isStrict()) {
       directJars = getNonRecursiveCompileTimeJarsFromDeps();
       if (directJars != null) {
+        attributes.addDirectCompileTimeClassPathEntries(directJars);
         attributes.addDirectJars(directJars);
       }
     }

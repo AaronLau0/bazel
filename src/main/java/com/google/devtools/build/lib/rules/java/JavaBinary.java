@@ -43,12 +43,13 @@ import com.google.devtools.build.lib.rules.cpp.CppConfiguration;
 import com.google.devtools.build.lib.rules.cpp.CppHelper;
 import com.google.devtools.build.lib.rules.cpp.LinkerInput;
 import com.google.devtools.build.lib.rules.java.JavaCompilationArgs.ClasspathType;
-import com.google.devtools.build.lib.rules.java.ProguardHelper.ProguardOutput;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.vfs.PathFragment;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
 import javax.annotation.Nullable;
 
 /**
@@ -85,7 +86,8 @@ public class JavaBinary implements RuleConfiguredTargetFactory {
       // TODO(cushon): disallow combining launcher=JDK_LAUNCHER_LABEL with create_executable=0
       // and use isAttributeExplicitlySpecified here
       Label launcherAttribute = ruleContext.attributes().get("launcher", BuildType.LABEL);
-      if (launcherAttribute != null && !semantics.isJdkLauncher(launcherAttribute)) {
+      if (launcherAttribute != null
+          && !launcherAttribute.equals(semantics.getJdkLauncherLabel())) {
         ruleContext.ruleError("launcher specified but create_executable is false");
       }
     }
@@ -95,7 +97,6 @@ public class JavaBinary implements RuleConfiguredTargetFactory {
         Lists.<TransitiveInfoCollection>newArrayList(
             common.targetsTreatedAsDeps(ClasspathType.COMPILE_ONLY));
     semantics.checkRule(ruleContext, common);
-    semantics.checkForProtoLibraryAndJavaProtoLibraryOnSameProto(ruleContext, common);
     String mainClass = semantics.getMainClass(ruleContext, common.getSrcsArtifacts());
     String originalMainClass = mainClass;
     if (ruleContext.hasErrors()) {
@@ -244,7 +245,7 @@ public class JavaBinary implements RuleConfiguredTargetFactory {
     Artifact deployJar =
         ruleContext.getImplicitOutputArtifact(JavaSemantics.JAVA_BINARY_DEPLOY_JAR);
     boolean runProguard = applyProguardIfRequested(
-        ruleContext, deployJar, common.getBootClasspath(), mainClass, semantics, filesBuilder);
+        ruleContext, deployJar, common.getBootClasspath(), mainClass, filesBuilder);
 
     NestedSet<Artifact> filesToBuild = filesBuilder.build();
 
@@ -483,15 +484,15 @@ public class JavaBinary implements RuleConfiguredTargetFactory {
    * {@link ProguardHelper#applyProguardIfRequested}.
    */
   private static boolean applyProguardIfRequested(RuleContext ruleContext, Artifact deployJar,
-      ImmutableList<Artifact> bootclasspath, String mainClassName, JavaSemantics semantics,
+      ImmutableList<Artifact> bootclasspath, String mainClassName,
       NestedSetBuilder<Artifact> filesBuilder) throws InterruptedException {
     // We only support proguarding tests so Proguard doesn't try to proguard itself.
     if (!ruleContext.getRule().getRuleClass().endsWith("_test")) {
       return false;
     }
-    ProguardOutput output =
+    ProguardHelper.ProguardOutput output =
         JavaBinaryProguardHelper.INSTANCE.applyProguardIfRequested(
-            ruleContext, deployJar, bootclasspath, mainClassName, semantics);
+            ruleContext, deployJar, bootclasspath, mainClassName);
     if (output == null) {
       return false;
     }

@@ -34,9 +34,6 @@ sh_test(
 
 filegroup(
     name = "srcs",
-    srcs = glob(["**"]) + [
-        "//scripts/release:srcs",
-        "//scripts/packages:srcs",
-    ],
+    srcs = glob(["**"]),
     visibility = ["//:__pkg__"],
 )

@@ -51,12 +51,14 @@ import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.util.ShellEscaper;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.protobuf.GeneratedMessage.GeneratedExtension;
+
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 
@@ -82,13 +84,13 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
 
   private static final String GUID = "ebd6fce3-093e-45ee-adb6-bf513b602f0d";
 
-  protected final CommandLine argv;
+  private final CommandLine argv;
 
   private final boolean executeUnconditionally;
   private final String progressMessage;
   private final String mnemonic;
   // entries are (directory for remote execution, Artifact)
-  protected final ImmutableMap<PathFragment, Artifact> inputManifests;
+  private final ImmutableMap<PathFragment, Artifact> inputManifests;
 
   private final ResourceSet resourceSet;
   private final ImmutableMap<String, String> environment;
@@ -429,7 +431,8 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
   public static class Builder {
 
     private final NestedSetBuilder<Artifact> toolsBuilder = NestedSetBuilder.stableOrder();
-    private final NestedSetBuilder<Artifact> inputsBuilder = NestedSetBuilder.stableOrder();
+    private final NestedSetBuilder<Artifact> inputsBuilder =
+        NestedSetBuilder.stableOrder();
     private final List<Artifact> outputs = new ArrayList<>();
     private final Map<PathFragment, Artifact> toolManifests = new LinkedHashMap<>();
     private final Map<PathFragment, Artifact> inputManifests = new LinkedHashMap<>();
@@ -590,41 +593,17 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
         env = this.environment;
       }
 
-      return createSpawnAction(
-          owner,
-          tools,
-          inputsAndTools,
-          ImmutableList.copyOf(outputs),
-          actualCommandLine,
-          ImmutableMap.copyOf(env),
-          ImmutableMap.copyOf(executionInfo),
-          progressMessage,
-          ImmutableMap.copyOf(inputAndToolManifests),
-          mnemonic);
-    }
-
-    SpawnAction createSpawnAction(
-        ActionOwner owner,
-        NestedSet<Artifact> tools,
-        NestedSet<Artifact> inputsAndTools,
-        ImmutableList<Artifact> outputs,
-        CommandLine actualCommandLine,
-        ImmutableMap<String, String> env,
-        ImmutableMap<String, String> executionInfo,
-        String progressMessage,
-        ImmutableMap<PathFragment, Artifact> inputAndToolManifests,
-        String mnemonic) {
       return new SpawnAction(
           owner,
           tools,
           inputsAndTools,
-          outputs,
+          ImmutableList.copyOf(outputs),
           resourceSet,
           actualCommandLine,
-          env,
+          ImmutableMap.copyOf(env),
           executionInfo,
           progressMessage,
-          inputAndToolManifests,
+          ImmutableMap.copyOf(inputAndToolManifests),
           mnemonic,
           executeUnconditionally,
           extraActionInfoSupplier);
@@ -676,15 +655,6 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
      */
     public Builder addInputs(Iterable<Artifact> artifacts) {
       inputsBuilder.addAll(artifacts);
-      return this;
-    }
-
-    /** @deprecated Use {@link #addTransitiveInputs} to avoid excessive memory use. */
-    @Deprecated
-    public Builder addInputs(NestedSet<Artifact> artifacts) {
-      // Do not delete this method, or else addInputs(Iterable) calls with a NestedSet argument
-      // will not be flagged.
-      inputsBuilder.addAll((Iterable<Artifact>) artifacts);
       return this;
     }
 
@@ -1037,15 +1007,6 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
     }
 
     /**
-     * Force the use of a parameter file and set the encoding to ISO-8859-1 (latin1).
-     *
-     * <p>In order to use parameter files, at least one output artifact must be specified.
-     */
-    public Builder alwaysUseParameterFile(ParameterFileType parameterFileType) {
-      return useParameterFile(parameterFileType, ISO_8859_1, "@", /*always=*/ true);
-    }
-
-    /**
      * Enable or disable the use of a parameter file, set the encoding to the given value, and
      * specify the argument prefix to use in passing the parameter file name to the tool.
      *
@@ -1054,12 +1015,7 @@ public class SpawnAction extends AbstractAction implements ExecutionInfoSpecifie
      */
     public Builder useParameterFile(
         ParameterFileType parameterFileType, Charset charset, String flagPrefix) {
-      return useParameterFile(parameterFileType, charset, flagPrefix, /*always=*/ false);
-    }
-
-    private Builder useParameterFile(
-        ParameterFileType parameterFileType, Charset charset, String flagPrefix, boolean always) {
-      paramFileInfo = new ParamFileInfo(parameterFileType, charset, flagPrefix, always);
+      paramFileInfo = new ParamFileInfo(parameterFileType, charset, flagPrefix);
       return this;
     }
   }

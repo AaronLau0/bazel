@@ -37,7 +37,6 @@ public class ResourceShrinkerActionBuilder {
   private ResourceDependencies dependencyResources;
   private Artifact resourceApkOut;
   private Artifact shrunkResourcesOut;
-  private Artifact logOut;
 
   private final RuleContext ruleContext;
   private final SpawnAction.Builder spawnActionBuilder;
@@ -124,14 +123,6 @@ public class ResourceShrinkerActionBuilder {
     return this;
   }
 
-  /**
-   * @param logOut The location to write the shrinker log.
-   */
-  public ResourceShrinkerActionBuilder setLogOut(Artifact logOut) {
-    this.logOut = logOut;
-    return this;
-  }
-
   public Artifact build() {
     ImmutableList.Builder<Artifact> inputs = ImmutableList.builder();
     ImmutableList.Builder<Artifact> outputs = ImmutableList.builder();
@@ -192,9 +183,6 @@ public class ResourceShrinkerActionBuilder {
 
     commandLine.addExecPath("--shrunkResources", shrunkResourcesOut);
     outputs.add(shrunkResourcesOut);
-
-    commandLine.addExecPath("--log", logOut);
-    outputs.add(logOut);
 
     ruleContext.registerAction(spawnActionBuilder
         .addTool(sdk.getAapt())

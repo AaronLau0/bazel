@@ -92,31 +92,20 @@ static NSString *ExpandVersion(NSString *version) {
 int main(int argc, const char * argv[]) {
   @autoreleasepool {
     NSString *versionArg = nil;
-    BOOL versionsOnly = NO;
     if (argc == 1) {
       versionArg = @"";
     } else if (argc == 2) {
-      NSString *firstArg = [NSString stringWithUTF8String:argv[1]];
-      if ([@"-v" isEqualToString:firstArg]) {
-        versionsOnly = YES;
-        versionArg = @"";
-      } else {
-        versionArg = firstArg;
-        NSCharacterSet *versSet =
-            [NSCharacterSet characterSetWithCharactersInString:@"0123456789."];
-        if ([versionArg rangeOfCharacterFromSet:versSet.invertedSet].length != 0) {
-          versionArg = nil;
-        }
+      versionArg = [NSString stringWithUTF8String:argv[1]];
+      NSCharacterSet *versSet = [NSCharacterSet characterSetWithCharactersInString:@"0123456789."];
+      if ([versionArg rangeOfCharacterFromSet:versSet.invertedSet].length != 0) {
+        versionArg = nil;
       }
     }
     if (versionArg == nil) {
-      printf("xcode_locator [-v|<version_number>]\n"
+      printf("xcode_locator <version_number>\n"
              "Given a version number, or partial version number in x.y.z format, will attempt "
              "to return the path to the appropriate developer directory.\nOmitting a version "
-             "number will list all available versions in JSON format, alongside their paths.\n"
-             "Passing -v will list all available fully-specified version numbers along with "
-             "their possible aliases and their developer directory, each on a new line.\n"
-             "For example: '7.3.1:7,7.3,7.3.1:/Applications/Xcode.app/Contents/Developer'.\n");
+             "number will list all available versions in JSON format.\n");
       return 1;
     }
 
@@ -154,32 +143,13 @@ int main(int argc, const char * argv[]) {
       return 0;
     }
 
-    if (versionsOnly) {
-      NSSet *distinctValues = [[NSSet alloc] initWithArray:[dict allValues]];
-      NSMutableDictionary *aliasDict = [[NSMutableDictionary alloc] init];
-      for (XcodeVersionEntry *value in distinctValues) {
-        NSString *versionString = value.version;
-        if (aliasDict[versionString] == nil) {
-          aliasDict[versionString] = [[NSMutableSet alloc] init];
-        }
-        [aliasDict[versionString] addObjectsFromArray:[dict allKeysForObject:value]];
-      }
-      for (NSString *version in aliasDict) {
-        XcodeVersionEntry *entry = dict[version];
-        printf("%s:%s:%s\n",
-               version.UTF8String,
-               [[aliasDict[version] allObjects] componentsJoinedByString: @","].UTF8String,
-               entry.url.fileSystemRepresentation);
-      }
-    } else {
-      // Print out list in json format.
-      printf("{\n");
-      for (NSString *version in dict) {
-        XcodeVersionEntry *entry = dict[version];
-        printf("\t\"%s\": \"%s\",\n", version.UTF8String, entry.url.fileSystemRepresentation);
-      }
-      printf("}\n");
+    // Print out list in json format.
+    printf("{\n");
+    for (NSString *version in dict) {
+      XcodeVersionEntry *entry = dict[version];
+      printf("\t\"%s\": \"%s\",\n", version.UTF8String, entry.url.fileSystemRepresentation);
     }
+    printf("}\n");
     return ([@"" isEqualToString:versionArg] ? 0 : 1);
   }
 }

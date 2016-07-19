@@ -339,9 +339,8 @@ public class AndroidStudioInfoAspect extends NativeAspectClass implements Config
       if (packageManifest != null) {
         providerBuilder.ideInfoFilesBuilder().add(packageManifest);
         ruleContext.registerAction(
-            makePackageManifestAction(ruleContext,
-                packageManifest,
-                getJavaSourceForPackageManifest(ruleContext)));
+            makePackageManifestAction(ruleContext, packageManifest, getJavaSources(ruleContext))
+        );
       }
 
       JavaRuleIdeInfo javaRuleIdeInfo = makeJavaRuleIdeInfo(
@@ -432,7 +431,7 @@ public class AndroidStudioInfoAspect extends NativeAspectClass implements Config
 
   @Nullable private static Artifact createPackageManifest(ConfiguredTarget base,
       RuleContext ruleContext) {
-    Collection<Artifact> sourceFiles = getJavaSourceForPackageManifest(ruleContext);
+    Collection<Artifact> sourceFiles = getJavaSources(ruleContext);
     if (sourceFiles.isEmpty()) {
       return null;
     }
@@ -468,11 +467,11 @@ public class AndroidStudioInfoAspect extends NativeAspectClass implements Config
       new Function<Artifact, String>() {
         @Override
         public String apply(Artifact artifact) {
-          Root root = artifact.getRoot();
+          ArtifactLocation location = makeArtifactLocation(artifact);
           return Joiner.on(",").join(
-              root.getExecPath().toString(),
-              artifact.getRootRelativePath().toString(),
-              root.getPath().toString() // Remove me once we remove ArtifactLocation root
+              location.getRootExecutionPathFragment(),
+              location.getRelativePath(),
+              location.getRootPath()
           );
         }
       };
@@ -646,8 +645,6 @@ public class AndroidStudioInfoAspect extends NativeAspectClass implements Config
       builder.addSource(makeArtifactLocation(sourceFile));
     }
 
-    ideResolveArtifacts.addTransitive(cppCompilationContext.getDeclaredIncludeSrcs());
-
     builder.addAllRuleInclude(getIncludes(ruleContext));
     builder.addAllRuleDefine(getDefines(ruleContext));
     builder.addAllRuleCopt(getCopts(ruleContext));
@@ -770,7 +767,7 @@ public class AndroidStudioInfoAspect extends NativeAspectClass implements Config
     }
   }
 
-  private static Collection<Artifact> getJavaSourceForPackageManifest(RuleContext ruleContext) {
+  private static Collection<Artifact> getJavaSources(RuleContext ruleContext) {
     Collection<Artifact> srcs = getSources(ruleContext);
     List<Artifact> javaSrcs = Lists.newArrayList();
     for (Artifact src : srcs) {

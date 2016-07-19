@@ -32,8 +32,7 @@ public class WorkerOptions extends OptionsBase {
       "--strategy=Javac=worker",
       "--strategy=JavaIjar=local",
       "--strategy=JavaDeployJar=local",
-      "--strategy=JavaSourceJar=local",
-      "--strategy=Turbine=local"
+      "--strategy=JavaSourceJar=local"
     }
   )
   public Void experimentalPersistentJavac;

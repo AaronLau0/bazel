@@ -373,13 +373,7 @@ public class AggregatingAttributeMapper extends AbstractAttributeMapper {
     // have no impact on the dependency structure.
 
     if (selectors.isEmpty()) {
-      if (currentValueSoFar != null) {
-        // Null values arise when a None is used as the value of a Selector for a type without a
-        // default value.
-        // TODO(gregce): visitAttribute should probably convey that an unset attribute is possible.
-        // Therefore we need to actually handle null values here.
-        valuesBuilder.add(currentValueSoFar);
-      }
+      valuesBuilder.add(Preconditions.checkNotNull(currentValueSoFar));
     } else {
       Selector<T> firstSelector = selectors.get(0);
       List<Selector<T>> remainingSelectors = selectors.subList(1, selectors.size());

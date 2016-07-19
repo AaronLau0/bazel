@@ -114,9 +114,7 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
     delegate = map;
   }
 
-
-  @Override
-  protected Map<K, V> delegate() {
+  @Override protected Map<K, V> delegate() {
     return delegate;
   }
 
@@ -224,7 +222,7 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
         }
         // Force the map to be dirty, so that we can save it to disk.
         dirty = true;
-        save(/*fullSave=*/ true);
+        save(/*fullSave=*/true);
       } else {
         dirty = false;
       }
@@ -238,7 +236,7 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
    * @throws IOException
    */
   public void load() throws IOException {
-    load(/*throwOnLoadFailure=*/ false);
+    load(/*throwOnLoadFailure=*/false);
   }
 
   @Override
@@ -291,7 +289,6 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
             mapFile.getRelative(FileSystemUtils.replaceExtension(mapFile.asFragment(), ".tmp"));
         try {
           saveEntries(delegate(), mapTemp);
-          mapFile.delete();
           mapTemp.renameTo(mapFile);
         } finally {
           mapTemp.delete();
@@ -334,7 +331,8 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
     if (!mapFile.exists()) {
       return;
     }
-    DataInputStream in = new DataInputStream(new BufferedInputStream(mapFile.getInputStream()));
+    DataInputStream in =
+      new DataInputStream(new BufferedInputStream(mapFile.getInputStream()));
     try {
       long fileSize = mapFile.getFileSize();
       if (fileSize < (16)) {
@@ -385,7 +383,7 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
   private DataOutputStream createMapFile(Path mapFile) throws IOException {
     FileSystemUtils.createDirectoryAndParents(mapFile.getParentDirectory());
     DataOutputStream out =
-        new DataOutputStream(new BufferedOutputStream(mapFile.getOutputStream()));
+      new DataOutputStream(new BufferedOutputStream(mapFile.getOutputStream()));
     out.writeLong(MAGIC);
     out.writeLong(version);
     return out;
@@ -399,7 +397,8 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
    *        DataOutputStream.
    * @throws IOException
    */
-  private void writeEntries(DataOutputStream out, Map<K, V> map) throws IOException {
+  private void writeEntries(DataOutputStream out, Map<K, V> map)
+      throws IOException {
     for (Map.Entry<K, V> entry : map.entrySet()) {
       out.writeByte(ENTRY_MAGIC);
       writeKey(entry.getKey(), out);
@@ -454,7 +453,8 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
    * @param out the DataOutputStream to write the entry to.
    * @throws IOException
    */
-  protected abstract void writeKey(K key, DataOutputStream out) throws IOException;
+  protected abstract void writeKey(K key, DataOutputStream out)
+      throws IOException;
 
   /**
    * Writes a value of this map into the specified DataOutputStream.
@@ -463,7 +463,8 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
    * @param out the DataOutputStream to write the entry to.
    * @throws IOException
    */
-  protected abstract void writeValue(V value, DataOutputStream out) throws IOException;
+  protected abstract void writeValue(V value, DataOutputStream out)
+      throws IOException;
 
   /**
    * Reads an entry of this map from the specified DataInputStream.
@@ -483,4 +484,3 @@ public abstract class PersistentMap<K, V> extends ForwardingMap<K, V> {
    */
   protected abstract V readValue(DataInputStream in) throws IOException;
 }
-

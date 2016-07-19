@@ -30,6 +30,7 @@ public class ForkJoinQuiescingExecutor extends AbstractQueueVisitor {
         forkJoinPool,
         /*shutdownOnCompletion=*/ true,
         /*failFastOnException=*/ true,
+        /*failFastOnInterrupt=*/ true,
         errorClassifier,
         errorHandler);
   }

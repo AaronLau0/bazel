@@ -24,6 +24,7 @@ import com.google.devtools.build.lib.analysis.RuleConfiguredTarget.Mode;
 import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.actions.CommandLine;
 import com.google.devtools.build.lib.analysis.actions.CustomCommandLine;
+import com.google.devtools.build.lib.analysis.actions.CustomCommandLine.CustomMultiArgv;
 import com.google.devtools.build.lib.analysis.actions.SpawnAction;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.analysis.config.BuildConfiguration.StrictDepsMode;
@@ -32,22 +33,25 @@ import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.vfs.PathFragment;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
 import javax.annotation.Nullable;
 
 /**
- * Builder for Java header compilation actions, to be used if --java_header_compilation is enabled.
+ * Builder for Java header compilation actions, to be used if --experimental_java_header_compilation
+ * is enabled.
  *
- * <p>The header compiler consumes the inputs of a java compilation, and produces an interface jar
- * that can be used as a compile-time jar by upstream targets. The header interface jar is
- * equivalent to the output of ijar, but unlike ijar the header compiler operates directly on Java
- * source files instead post-processing the class outputs of the compilation. Compiling the
+ * <p>The header compiler consumes the inputs of a java compilation, and produces an interface
+ * jar that can be used as a compile-time jar by upstream targets. The header interface jar is
+ * equivalent to the output of ijar, but unlike ijar the header compiler operates directly on
+ * Java source files instead post-processing the class outputs of the compilation. Compiling the
  * interface jar from source moves javac off the build's critical path.
  *
- * <p>The implementation of the header compiler tool can be found under {@code
- * //src/java_tools/buildjar/java/com/google/devtools/build/java/turbine}.
+ * <p>The implementation of the header compiler tool can be found under
+ * {@code //src/java_tools/buildjar/java/com/google/devtools/build/java/turbine}.
  */
 public class JavaHeaderCompileActionBuilder {
 
@@ -67,7 +71,7 @@ public class JavaHeaderCompileActionBuilder {
   @Nullable private Label targetLabel;
   private PathFragment tempDirectory;
   private BuildConfiguration.StrictDepsMode strictJavaDeps = BuildConfiguration.StrictDepsMode.OFF;
-  private NestedSet<Artifact> directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
+  private List<Artifact> directJars = new ArrayList<>();
   private List<Artifact> compileTimeDependencyArtifacts = new ArrayList<>();
   private ImmutableList<String> javacOpts;
   private List<Artifact> processorPath = new ArrayList<>();
@@ -88,9 +92,9 @@ public class JavaHeaderCompileActionBuilder {
   }
 
   /** Sets the direct dependency artifacts. */
-  public JavaHeaderCompileActionBuilder setDirectJars(NestedSet<Artifact> directJars) {
+  public JavaHeaderCompileActionBuilder addDirectJars(Collection<Artifact> directJars) {
     checkNotNull(directJars, "directJars must not be null");
-    this.directJars = directJars;
+    this.directJars.addAll(directJars);
     return this;
   }
 
@@ -233,13 +237,6 @@ public class JavaHeaderCompileActionBuilder {
     checkNotNull(processorPath, "processorPath must not be null");
     checkNotNull(processorNames, "processorNames must not be null");
 
-    // Invariant: if strictJavaDeps is OFF, then directJars and
-    // dependencyArtifacts are ignored
-    if (strictJavaDeps == BuildConfiguration.StrictDepsMode.OFF) {
-      directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
-      compileTimeDependencyArtifacts.clear();
-    }
-
     SpawnAction.Builder builder = new SpawnAction.Builder();
 
     builder.addOutput(outputJar);
@@ -247,19 +244,16 @@ public class JavaHeaderCompileActionBuilder {
       builder.addOutput(outputDepsProto);
     }
 
-    // Always use a params file. The arguments (classpath in particular) may be so large that
-    // comparing the command line length to the minimum param file size regresses analysis
-    // performance (see b/29410356).
-    builder.alwaysUseParameterFile(ParameterFileType.UNQUOTED);
-    builder.setCommandLine(buildCommandLine());
+    builder.useParameterFile(ParameterFileType.UNQUOTED);
+    builder.setCommandLine(buildCommandLine(ruleContext.getConfiguration().getHostPathSeparator()));
 
     builder.addTransitiveInputs(javabaseInputs);
-    builder.addTransitiveInputs(classpathEntries);
+    builder.addInputs(classpathEntries);
     builder.addInputs(bootclasspathEntries);
     builder.addInputs(processorPath);
     builder.addInputs(sourceJars);
     builder.addInputs(sourceFiles);
-    builder.addTransitiveInputs(directJars);
+    builder.addInputs(directJars);
     builder.addInputs(compileTimeDependencyArtifacts);
 
     builder.addTool(javacJar);
@@ -269,7 +263,7 @@ public class JavaHeaderCompileActionBuilder {
             ":java_toolchain" + implicitAttributesSuffix, Mode.TARGET, JavaToolchainProvider.class);
     List<String> jvmArgs =
         ImmutableList.<String>builder()
-            .addAll(javaToolchain.getJvmOptions())
+            .addAll(javaToolchain.getJavacJvmOptions())
             .add("-Xbootclasspath/p:" + javacJar.getExecPath().getPathString())
             .build();
     builder.setJarExecutable(
@@ -289,7 +283,7 @@ public class JavaHeaderCompileActionBuilder {
   }
 
   /** Builds the header compiler command line. */
-  private CommandLine buildCommandLine() {
+  private CommandLine buildCommandLine(String hostPathSeparator) {
     CustomCommandLine.Builder result = CustomCommandLine.builder();
 
     result.addExecPath("--output", outputJar);
@@ -300,14 +294,16 @@ public class JavaHeaderCompileActionBuilder {
 
     result.add("--temp_dir").addPath(tempDirectory);
 
-    result.addExecPaths("--classpath", classpathEntries);
-    result.addExecPaths("--bootclasspath", bootclasspathEntries);
+    result.addJoinExecPaths("--classpath", hostPathSeparator, classpathEntries);
+    result.addJoinExecPaths(
+        "--bootclasspath", hostPathSeparator, bootclasspathEntries);
 
     if (!processorNames.isEmpty()) {
       result.add("--processors", processorNames);
     }
     if (!processorPath.isEmpty()) {
-      result.addExecPaths("--processorpath", processorPath);
+      result.addJoinExecPaths(
+          "--processorpath", hostPathSeparator, processorPath);
     }
 
     result.addExecPaths("--sources", sourceFiles);
@@ -335,7 +331,13 @@ public class JavaHeaderCompileActionBuilder {
     }
 
     if (strictJavaDeps != BuildConfiguration.StrictDepsMode.OFF) {
-      result.add(new JavaCompileAction.JarsToTargetsArgv(classpathEntries, directJars));
+      result.add(
+          new CustomMultiArgv() {
+            @Override
+            public Iterable<String> argv() {
+              return JavaCompileAction.addJarsToTargets(classpathEntries, directJars);
+            }
+          });
 
       if (!compileTimeDependencyArtifacts.isEmpty()) {
         result.addExecPaths("--deps_artifacts", compileTimeDependencyArtifacts);

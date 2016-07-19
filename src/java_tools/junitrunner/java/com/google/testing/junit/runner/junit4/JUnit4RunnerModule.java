@@ -14,6 +14,8 @@
 
 package com.google.testing.junit.runner.junit4;
 
+import static dagger.Provides.Type.SET;
+
 import com.google.common.base.Optional;
 import com.google.common.base.Ticker;
 import com.google.common.io.ByteStreams;
@@ -22,7 +24,6 @@ import com.google.testing.junit.runner.util.TestNameProvider;
 
 import dagger.Module;
 import dagger.Provides;
-import dagger.multibindings.IntoSet;
 
 import org.junit.runner.notification.RunListener;
 
@@ -48,20 +49,17 @@ public final class JUnit4RunnerModule {
     return SignalHandlers.createRealHandlerInstaller();
   }
 
-  @Provides
-  @IntoSet
+  @Provides(type = SET)
   static RunListener nameListener(JUnit4TestNameListener impl) {
     return impl;
   }
 
-  @Provides
-  @IntoSet
+  @Provides(type = SET)
   static RunListener xmlListener(JUnit4TestXmlListener impl) {
     return impl;
   }
 
-  @Provides
-  @IntoSet
+  @Provides(type = SET)
   static RunListener stackTraceListener(JUnit4TestStackTraceListener impl) {
     return impl;
   }

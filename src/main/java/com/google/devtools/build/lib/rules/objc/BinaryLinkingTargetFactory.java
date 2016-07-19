@@ -32,12 +32,13 @@ import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.
 import com.google.devtools.build.lib.rules.RuleConfiguredTargetFactory;
 import com.google.devtools.build.lib.rules.apple.AppleConfiguration;
 import com.google.devtools.build.lib.rules.apple.Platform;
-import com.google.devtools.build.lib.rules.apple.Platform.PlatformType;
 import com.google.devtools.build.lib.rules.objc.CompilationSupport.ExtraLinkArgs;
+import com.google.devtools.build.lib.rules.objc.ObjcCommon.CompilationAttributes;
 import com.google.devtools.build.lib.rules.objc.ObjcCommon.ResourceAttributes;
 import com.google.devtools.build.lib.rules.objc.ProtoSupport.TargetType;
 import com.google.devtools.build.lib.rules.objc.ReleaseBundlingSupport.LinkedBinary;
 import com.google.devtools.build.lib.rules.test.InstrumentedFilesProvider;
+import com.google.devtools.build.lib.vfs.PathFragment;
 
 /**
  * Implementation for rules that link binaries.
@@ -75,38 +76,21 @@ abstract class BinaryLinkingTargetFactory implements RuleConfiguredTargetFactory
   @Override
   public final ConfiguredTarget create(RuleContext ruleContext)
       throws InterruptedException, RuleErrorException {
-    ObjcConfiguration objcConfiguration = ObjcRuleClasses.objcConfiguration(ruleContext);
-
-    ObjcProvider protosObjcProvider = null;
-    XcodeProvider protosXcodeProvider = null;
-
-    if (objcConfiguration.experimentalAutoTopLevelUnionObjCProtos()) {
-      XcodeProvider.Builder protosXcodeProviderBuilder = new XcodeProvider.Builder();
-      ProtoSupport protoSupport = new ProtoSupport(ruleContext, TargetType.LINKING_TARGET)
-          .registerActions()
-          .addXcodeProviderOptions(protosXcodeProviderBuilder);
-
-      ObjcCommon protoCommon = protoSupport.getCommon();
-      protosObjcProvider = protoCommon.getObjcProvider();
-
-      new CompilationSupport(
-              ruleContext,
-              protoSupport.getIntermediateArtifacts(),
-              new CompilationAttributes.Builder().build())
-          .registerCompileAndArchiveActions(protoCommon, protoSupport.getUserHeaderSearchPaths())
-          .addXcodeSettings(protosXcodeProviderBuilder, protoCommon);
-      protosXcodeProvider = protosXcodeProviderBuilder.build();
-    }
-
-    ObjcCommon common = common(ruleContext, protosObjcProvider);
+    ObjcCommon common = common(ruleContext);
 
     ObjcProvider objcProvider = common.getObjcProvider();
     assertLibraryOrSources(objcProvider, ruleContext);
 
     XcodeProvider.Builder xcodeProviderBuilder = new XcodeProvider.Builder();
-    if (protosXcodeProvider != null) {
-      xcodeProviderBuilder.addPropagatedDependencies(
-          ImmutableList.of(protosXcodeProvider));
+
+    ProtoSupport protoSupport = new ProtoSupport(ruleContext, TargetType.LINKING_TARGET);
+    Iterable<PathFragment> priorityHeaders;
+    ObjcConfiguration objcConfiguration = ObjcRuleClasses.objcConfiguration(ruleContext);
+    if (objcConfiguration.experimentalAutoTopLevelUnionObjCProtos()) {
+      protoSupport.registerActions().addXcodeProviderOptions(xcodeProviderBuilder);
+      priorityHeaders = protoSupport.getUserHeaderSearchPaths();
+    } else {
+      priorityHeaders = ImmutableList.of();
     }
 
     IntermediateArtifacts intermediateArtifacts =
@@ -131,7 +115,7 @@ abstract class BinaryLinkingTargetFactory implements RuleConfiguredTargetFactory
 
     CompilationSupport compilationSupport =
         new CompilationSupport(ruleContext)
-            .registerCompileAndArchiveActions(common)
+            .registerCompileAndArchiveActions(common, priorityHeaders)
             .registerFullyLinkAction(common.getObjcProvider())
             .addXcodeSettings(xcodeProviderBuilder, common)
             .registerLinkActions(
@@ -164,7 +148,7 @@ abstract class BinaryLinkingTargetFactory implements RuleConfiguredTargetFactory
             .validateAttributes();
 
         xcTestAppProvider = Optional.of(releaseBundlingSupport.xcTestAppProvider());
-        if (appleConfiguration.getMultiArchPlatform(PlatformType.IOS) == Platform.IOS_SIMULATOR) {
+        if (appleConfiguration.getBundlingPlatform() == Platform.IOS_SIMULATOR) {
           Artifact runnerScript = intermediateArtifacts.runnerScript();
           Artifact ipaFile = ruleContext.getImplicitOutputArtifact(ReleaseBundlingSupport.IPA);
           releaseBundlingSupport.registerGenerateRunnerScriptAction(runnerScript, ipaFile);
@@ -222,21 +206,30 @@ abstract class BinaryLinkingTargetFactory implements RuleConfiguredTargetFactory
     }
   }
 
-  private ObjcCommon common(RuleContext ruleContext, ObjcProvider protosObjcProvider) {
+  private ObjcCommon common(RuleContext ruleContext) {
     IntermediateArtifacts intermediateArtifacts =
         ObjcRuleClasses.intermediateArtifacts(ruleContext);
     CompilationArtifacts compilationArtifacts =
         CompilationSupport.compilationArtifacts(ruleContext);
 
+    if (ObjcRuleClasses.objcConfiguration(ruleContext).experimentalAutoTopLevelUnionObjCProtos()) {
+      ProtoSupport protoSupport = new ProtoSupport(ruleContext, TargetType.LINKING_TARGET);
+      compilationArtifacts =
+          new CompilationArtifacts.Builder()
+              .setPchFile(compilationArtifacts.getPchFile())
+              .setIntermediateArtifacts(ObjcRuleClasses.intermediateArtifacts(ruleContext))
+              .addAllSources(compilationArtifacts)
+              .addAllSources(protoSupport.getCompilationArtifacts())
+              .build();
+    }
+
     ObjcCommon.Builder builder =
         new ObjcCommon.Builder(ruleContext)
-            .setCompilationAttributes(
-                CompilationAttributes.Builder.fromRuleContext(ruleContext).build())
+            .setCompilationAttributes(new CompilationAttributes(ruleContext))
             .setCompilationArtifacts(compilationArtifacts)
             .setResourceAttributes(new ResourceAttributes(ruleContext))
             .addDefines(ruleContext.getTokenizedStringListAttr("defines"))
             .addDeps(ruleContext.getPrerequisites("deps", Mode.TARGET))
-            .addRuntimeDeps(ruleContext.getPrerequisites("runtime_deps", Mode.TARGET))
             .addDeps(ruleContext.getPrerequisites("bundles", Mode.TARGET))
             .addNonPropagatedDepObjcProviders(
                 ruleContext.getPrerequisites(
@@ -246,16 +239,13 @@ abstract class BinaryLinkingTargetFactory implements RuleConfiguredTargetFactory
             .setHasModuleMap()
             .setLinkedBinary(intermediateArtifacts.strippedSingleArchitectureBinary());
 
-    if (ObjcRuleClasses.objcConfiguration(ruleContext).generateDsym()) {
+    if (ObjcRuleClasses.objcConfiguration(ruleContext).generateDebugSymbols()
+        || ObjcRuleClasses.objcConfiguration(ruleContext).generateDsym()) {
       builder.addDebugArtifacts(DsymOutputType.APP);
     }
 
     if (ObjcRuleClasses.objcConfiguration(ruleContext).generateLinkmap()) {
       builder.setLinkmapFile(intermediateArtifacts.linkmap());
-    }
-
-    if (protosObjcProvider != null) {
-      builder.addDepObjcProviders(ImmutableList.of(protosObjcProvider));
     }
 
     return builder.build();

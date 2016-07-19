@@ -32,6 +32,7 @@ import com.google.devtools.build.lib.vfs.PathFragment;
 // final as well as intermediate artifacts.
 public final class IntermediateArtifacts {
   static final String LINKMAP_SUFFIX = ".linkmap";
+  static final String BREAKPAD_SUFFIX = ".breakpad";
 
   /**
    * Extension used for the zip archive containing dsym files and their associated plist. Note that
@@ -148,19 +149,11 @@ public final class IntermediateArtifacts {
   }
 
   /**
-   * The .objlist file, which contains a list of paths of object files to archive and is read by
-   * clang (via -filelist flag) in the link action (for binary creation).
-   */
-  public Artifact linkerObjList() {
-    return appendExtension("-linker.objlist");
-  }
-
-  /**
    * The .objlist file, which contains a list of paths of object files to archive  and is read by
-   * libtool (via -filelist flag) in the archive action.
+   * libtool in the archive action.
    */
-  public Artifact archiveObjList() {
-    return appendExtension("-archive.objlist");
+  public Artifact objList() {
+    return appendExtension(".objlist");
   }
 
   /**
@@ -355,6 +348,20 @@ public final class IntermediateArtifacts {
   }
 
   /**
+   * Breakpad debug symbol representation.
+   */
+  public Artifact breakpadSym() {
+    return appendExtension(BREAKPAD_SUFFIX);
+  }
+
+  /**
+   * Breakpad debug symbol representation for a specific architecture.
+   */
+  public Artifact breakpadSym(String arch) {
+    return architectureRepresentation(arch, BREAKPAD_SUFFIX);
+  }
+
+  /**
    * Linkmap representation
    */
   public Artifact linkmap() {
@@ -386,6 +393,9 @@ public final class IntermediateArtifacts {
    * {@link CppModuleMap} that provides the clang module map for this target.
    */
   public CppModuleMap moduleMap() {
+    if (!buildConfiguration.getFragment(ObjcConfiguration.class).moduleMapsEnabled()) {
+      throw new IllegalStateException();
+    }
     String moduleName =
         ruleContext
             .getLabel()

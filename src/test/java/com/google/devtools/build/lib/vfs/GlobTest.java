@@ -159,19 +159,81 @@ public class GlobTest {
     assertGlobMatches("foo/bar/wiz/file/*" /* => nothing */);
   }
 
+  @Test
+  public void testSingleFileExclude() throws Exception {
+    assertGlobWithExcludeMatches("*", "food", "foo", "fool");
+  }
+
+  @Test
+  public void testExcludeAll() throws Exception {
+    assertGlobWithExcludeMatches("*", "*");
+  }
+
+  @Test
+  public void testExcludeAllButNoMatches() throws Exception {
+    assertGlobWithExcludeMatches("not-there", "*");
+  }
+
+  @Test
+  public void testSingleFileExcludeDoesntMatch() throws Exception {
+    assertGlobWithExcludeMatches("food", "foo", "food");
+  }
+
+  @Test
+  public void testSingleFileExcludeForDirectoryWithChildGlob()
+      throws Exception {
+    assertGlobWithExcludeMatches("foo/*", "foo", "foo/bar", "foo/barnacle");
+  }
+
+  @Test
+  public void testChildGlobWithChildExclude()
+      throws Exception {
+    assertGlobWithExcludeMatches("foo/*", "foo/*");
+    assertGlobWithExcludeMatches("foo/bar", "foo/*");
+    assertGlobWithExcludeMatches("foo/bar", "foo/bar");
+    assertGlobWithExcludeMatches("foo/bar", "*/bar");
+    assertGlobWithExcludeMatches("foo/bar", "*/*");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "*/*/*");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "foo/*/*");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "foo/bar/*");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "foo/bar/wiz");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "*/bar/wiz");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "*/*/wiz");
+    assertGlobWithExcludeMatches("foo/bar/wiz", "foo/*/wiz");
+  }
+
   private void assertGlobMatches(String pattern, String... expecteds)
       throws Exception {
-    assertGlobMatches(Collections.singleton(pattern), expecteds);
+    assertGlobWithExcludesMatches(
+        Collections.singleton(pattern), Collections.<String>emptyList(),
+        expecteds);
   }
 
   private void assertGlobMatches(Collection<String> pattern,
                                  String... expecteds)
       throws Exception {
+    assertGlobWithExcludesMatches(pattern, Collections.<String>emptyList(),
+        expecteds);
+  }
+
+  private void assertGlobWithExcludeMatches(String pattern, String exclude,
+                                            String... expecteds)
+      throws Exception {
+    assertGlobWithExcludesMatches(
+        Collections.singleton(pattern), Collections.singleton(exclude),
+        expecteds);
+  }
+
+  private void assertGlobWithExcludesMatches(Collection<String> pattern,
+                                             Collection<String> excludes,
+                                             String... expecteds)
+      throws Exception {
     assertThat(
-        new UnixGlob.Builder(tmpPath)
-            .addPatterns(pattern)
-            .globInterruptible())
-    .containsExactlyElementsIn(resolvePaths(expecteds));
+            new UnixGlob.Builder(tmpPath)
+                .addPatterns(pattern)
+                .addExcludes(excludes)
+                .globInterruptible())
+        .containsExactlyElementsIn(resolvePaths(expecteds));
   }
 
   private Set<Path> resolvePaths(String... relativePaths) {
@@ -247,6 +309,12 @@ public class GlobTest {
   @Test
   public void testMultiplePatterns() throws Exception {
     assertGlobMatches(Lists.newArrayList("foo", "fool"), "foo", "fool");
+  }
+
+  @Test
+  public void testMultiplePatternsWithExcludes() throws Exception {
+    assertGlobWithExcludesMatches(Lists.newArrayList("foo", "foo?"),
+        Lists.newArrayList("fool"), "foo", "food");
   }
 
   @Test

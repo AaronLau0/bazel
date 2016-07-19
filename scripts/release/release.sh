@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -eu
 
 # Copyright 2015 The Bazel Authors. All rights reserved.
 #
@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
-
 # Generate the release branches and handle the release tags.
+
+set -eu
 
 # Repositories to push the release branch and the release tag.
 : ${RELEASE_REPOSITORIES:="git@github.com:bazelbuild/bazel"}

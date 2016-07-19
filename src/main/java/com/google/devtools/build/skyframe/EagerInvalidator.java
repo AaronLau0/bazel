@@ -43,14 +43,9 @@ public final class EagerInvalidator {
    * long as the full upward transitive closure of the nodes is specified for deletion, the graph
    * remains consistent.
    */
-  public static void delete(
-      InMemoryGraph graph,
-      Iterable<SkyKey> diff,
-      EvaluationProgressReceiver invalidationReceiver,
-      InvalidationState state,
-      boolean traverseGraph,
-      DirtyKeyTracker dirtyKeyTracker)
-      throws InterruptedException {
+  public static void delete(DirtiableGraph graph, Iterable<SkyKey> diff,
+      EvaluationProgressReceiver invalidationReceiver, InvalidationState state,
+      boolean traverseGraph, DirtyKeyTracker dirtyKeyTracker) throws InterruptedException {
     DeletingNodeVisitor visitor =
         createDeletingVisitorIfNeeded(
             graph, diff, invalidationReceiver, state, traverseGraph, dirtyKeyTracker);
@@ -61,7 +56,7 @@ public final class EagerInvalidator {
 
   @Nullable
   static DeletingNodeVisitor createDeletingVisitorIfNeeded(
-      InMemoryGraph graph,
+      DirtiableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,
@@ -75,7 +70,7 @@ public final class EagerInvalidator {
 
   @Nullable
   static DirtyingNodeVisitor createInvalidatingVisitorIfNeeded(
-      InvalidatableGraph graph,
+      ThinNodeQueryableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,
@@ -89,7 +84,7 @@ public final class EagerInvalidator {
 
   @Nullable
   private static DirtyingNodeVisitor createInvalidatingVisitorIfNeeded(
-      InvalidatableGraph graph,
+      ThinNodeQueryableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,
@@ -115,7 +110,7 @@ public final class EagerInvalidator {
    * an executor constructed with the provided factory.
    */
   public static void invalidate(
-      InvalidatableGraph graph,
+      ThinNodeQueryableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,
@@ -135,7 +130,7 @@ public final class EagerInvalidator {
    * the provided {@link ForkJoinPool}.
    */
   public static void invalidate(
-      InvalidatableGraph graph,
+      ThinNodeQueryableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,
@@ -159,9 +154,11 @@ public final class EagerInvalidator {
     }
   }
 
-  /** Invalidates given values and their upward transitive closure in the graph. */
+  /**
+   * Invalidates given values and their upward transitive closure in the graph.
+   */
   public static void invalidate(
-      InvalidatableGraph graph,
+      DirtiableGraph graph,
       Iterable<SkyKey> diff,
       EvaluationProgressReceiver invalidationReceiver,
       InvalidationState state,

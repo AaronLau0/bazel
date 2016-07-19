@@ -13,8 +13,6 @@
 // limitations under the License.
 package com.google.devtools.build.android;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -25,7 +23,6 @@ import com.google.devtools.build.android.Converters.DependencyAndroidDataListCon
 import com.google.devtools.build.android.Converters.PathConverter;
 import com.google.devtools.build.android.Converters.UnvalidatedAndroidDataConverter;
 import com.google.devtools.build.android.Converters.VariantConfigurationTypeConverter;
-import com.google.devtools.build.android.SplitConfigurationFilter.UnrecognizedSplitsException;
 import com.google.devtools.common.options.Converters.CommaSeparatedOptionListConverter;
 import com.google.devtools.common.options.Option;
 import com.google.devtools.common.options.OptionsBase;
@@ -33,7 +30,6 @@ import com.google.devtools.common.options.OptionsParser;
 import com.google.devtools.common.options.TriState;
 
 import com.android.builder.core.VariantConfiguration;
-import com.android.builder.core.VariantConfiguration.Type;
 import com.android.ide.common.internal.AaptCruncher;
 import com.android.ide.common.internal.CommandLineRunner;
 import com.android.ide.common.internal.LoggedErrorException;
@@ -221,9 +217,11 @@ public class AndroidResourceProcessingAction {
     Path working = fileSystem.getPath("").toAbsolutePath();
     final AndroidResourceProcessor resourceProcessor = new AndroidResourceProcessor(STD_LOGGER);
 
-    try (ScopedTemporaryDirectory scopedTmp =
-        new ScopedTemporaryDirectory("android_resources_tmp")) {
-      final Path tmp = scopedTmp.getPath();
+    try {
+      final Path tmp = Files.createTempDirectory("android_resources_tmp");
+      // Clean up the tmp file on exit to keep diskspace low.
+      tmp.toFile().deleteOnExit();
+
       final Path expandedOut = tmp.resolve("tmp-expanded");
       final Path deduplicatedOut = tmp.resolve("tmp-deduplicated");
       final Path mergedAssets = tmp.resolve("merged_assets");
@@ -231,7 +229,6 @@ public class AndroidResourceProcessingAction {
       final Path filteredResources = tmp.resolve("resources-filtered");
       final Path densityManifest = tmp.resolve("manifest-filtered/AndroidManifest.xml");
       final Path processedManifest = tmp.resolve("manifest-processed/AndroidManifest.xml");
-      final Path dummyManifest = tmp.resolve("manifest-aapt-dummy/AndroidManifest.xml");
 
       Path generatedSources = null;
       if (options.srcJarOutput != null || options.rOutput != null
@@ -272,7 +269,7 @@ public class AndroidResourceProcessingAction {
       LOGGER.fine(String.format("Density filtering finished at %sms",
           timer.elapsed(TimeUnit.MILLISECONDS)));
 
-      MergedAndroidData processedData = resourceProcessor.processManifest(
+      final MergedAndroidData processedManifestData = resourceProcessor.processManifest(
           options.packageType,
           options.packageForR,
           options.applicationId,
@@ -280,24 +277,6 @@ public class AndroidResourceProcessingAction {
           options.versionName,
           filteredData,
           processedManifest);
-
-      // Write manifestOutput now before the dummy manifest is created.
-      if (options.manifestOutput != null) {
-        resourceProcessor.copyManifestToOutput(processedData, options.manifestOutput);
-      }
-
-      if (options.packageType == Type.LIBRARY) {
-        Files.createDirectories(dummyManifest.getParent());
-        Files.write(dummyManifest, String.format(
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-            + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\""
-            + " package=\"%s\">"
-            + "</manifest>", options.packageForR).getBytes(UTF_8));
-        processedData = new MergedAndroidData(
-            processedData.getResourceDir(),
-            processedData.getAssetDir(),
-            dummyManifest);
-      }
 
       resourceProcessor.processResources(
           aaptConfigOptions.aapt,
@@ -309,17 +288,20 @@ public class AndroidResourceProcessingAction {
           new FlagAaptOptions(aaptConfigOptions),
           aaptConfigOptions.resourceConfigs,
           aaptConfigOptions.splits,
-          processedData,
+          processedManifestData,
           data,
           generatedSources,
           options.packagePath,
           options.proguardOutput,
           options.mainDexProguardOutput,
           options.resourcesOutput != null
-              ? processedData.getResourceDir().resolve("values").resolve("public.xml")
+              ? processedManifestData.getResourceDir().resolve("values").resolve("public.xml")
               : null);
       LOGGER.fine(String.format("aapt finished at %sms", timer.elapsed(TimeUnit.MILLISECONDS)));
 
+      if (options.manifestOutput != null) {
+        resourceProcessor.copyManifestToOutput(processedManifestData, options.manifestOutput);
+      }
       if (options.srcJarOutput != null) {
         resourceProcessor.createSrcJar(generatedSources, options.srcJarOutput,
             VariantConfiguration.Type.LIBRARY == options.packageType);
@@ -333,18 +315,15 @@ public class AndroidResourceProcessingAction {
             VariantConfiguration.Type.LIBRARY == options.packageType);
       }
       if (options.resourcesOutput != null) {
-        resourceProcessor.createResourcesZip(processedData.getResourceDir(),
-            processedData.getAssetDir(), options.resourcesOutput);
+        resourceProcessor.createResourcesZip(processedManifestData.getResourceDir(),
+            processedManifestData.getAssetDir(), options.resourcesOutput);
       }
       LOGGER.fine(String.format("Packaging finished at %sms",
           timer.elapsed(TimeUnit.MILLISECONDS)));
     } catch (MergingException e) {
       LOGGER.log(java.util.logging.Level.SEVERE, "Error during merging resources", e);
       throw e;
-    } catch (IOException
-        | InterruptedException
-        | LoggedErrorException
-        | UnrecognizedSplitsException e) {
+    } catch (IOException | InterruptedException | LoggedErrorException e) {
       LOGGER.log(java.util.logging.Level.SEVERE, "Error during processing resources", e);
       throw e;
     } catch (Exception e) {

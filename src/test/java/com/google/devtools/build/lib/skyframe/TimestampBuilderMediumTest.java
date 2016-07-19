@@ -134,8 +134,7 @@ public class TimestampBuilderMediumTest extends TimestampBuilderTestCase {
     buildArtifacts(persistentBuilder(cache), goodbye);
     assertFalse(button.pressed); // not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    FileSystemUtils.touchFile(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(persistentBuilder(cache), goodbye);
@@ -365,8 +364,7 @@ public class TimestampBuilderMediumTest extends TimestampBuilderTestCase {
     buildArtifacts(persistentBuilder(cache), hello);
     assertFalse(button.pressed); // not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    BlazeTestUtils.changeModtime(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(persistentBuilder(cache), hello);
@@ -396,8 +394,7 @@ public class TimestampBuilderMediumTest extends TimestampBuilderTestCase {
     buildArtifacts(persistentBuilder(cache), hello);
     assertFalse(button.pressed); // not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    BlazeTestUtils.changeModtime(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(persistentBuilder(cache), hello);
@@ -443,8 +440,7 @@ public class TimestampBuilderMediumTest extends TimestampBuilderTestCase {
     buildArtifacts(persistentBuilder(cache), hello);
     assertFalse(button.pressed); // not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    BlazeTestUtils.changeModtime(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(persistentBuilder(cache), hello);

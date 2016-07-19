@@ -16,24 +16,22 @@ package com.google.devtools.build.android;
 import static com.android.resources.ResourceType.DECLARE_STYLEABLE;
 import static com.android.resources.ResourceType.ID;
 
-import com.android.resources.ResourceType;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.devtools.build.android.FullyQualifiedName.Factory;
 import com.google.devtools.build.android.ParsedAndroidData.KeyValueConsumer;
 import com.google.devtools.build.android.proto.SerializeFormat;
-import com.google.devtools.build.android.proto.SerializeFormat.DataValueXml;
 import com.google.devtools.build.android.xml.ArrayXmlResourceValue;
 import com.google.devtools.build.android.xml.AttrXmlResourceValue;
 import com.google.devtools.build.android.xml.IdXmlResourceValue;
-import com.google.devtools.build.android.xml.Namespaces;
 import com.google.devtools.build.android.xml.PluralXmlResourceValue;
 import com.google.devtools.build.android.xml.SimpleXmlResourceValue;
 import com.google.devtools.build.android.xml.StyleXmlResourceValue;
 import com.google.devtools.build.android.xml.StyleableXmlResourceValue;
 import com.google.protobuf.InvalidProtocolBufferException;
-import java.io.BufferedInputStream;
+
+import com.android.resources.ResourceType;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -41,6 +39,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+
 import javax.xml.stream.FactoryConfigurationError;
 import javax.xml.stream.XMLEventReader;
 import javax.xml.stream.XMLInputFactory;
@@ -59,8 +58,8 @@ public class DataResourceXml implements DataResource {
   /**
    * Parses xml resources from a Path to the provided overwritable and combining collections.
    *
-   * <p>This method is a bit tricky in the service of performance -- creating several collections
-   * and merging them was more expensive than writing to mutable collections directly.
+   * This method is a bit tricky in the service of performance -- creating several collections and
+   * merging them was more expensive than writing to mutable collections directly.
    *
    * @param xmlInputFactory Used to create an XMLEventReader from the supplied resource path.
    * @param path The path to the xml resource to be parsed.
@@ -79,16 +78,13 @@ public class DataResourceXml implements DataResource {
       KeyValueConsumer<DataKey, DataResource> combiningConsumer)
       throws XMLStreamException, FactoryConfigurationError, IOException {
     XMLEventReader eventReader =
-        xmlInputFactory.createXMLEventReader(
-            new BufferedInputStream(Files.newInputStream(path)),
-              StandardCharsets.UTF_8.toString());
+        xmlInputFactory.createXMLEventReader(Files.newBufferedReader(path, StandardCharsets.UTF_8));
     try {
       // TODO(corysmith): Make the xml parsing more readable.
       while (XmlResourceValues.moveToResources(eventReader)) {
         for (StartElement start = XmlResourceValues.findNextStart(eventReader);
             start != null;
             start = XmlResourceValues.findNextStart(eventReader)) {
-          Namespaces.Collector namespacesCollector = Namespaces.collector();
           if (XmlResourceValues.isEatComment(start) || XmlResourceValues.isSkip(start)) {
             continue;
           }
@@ -106,19 +102,10 @@ public class DataResourceXml implements DataResource {
             // Of simple resources, only IDs are combining.
             KeyValueConsumer<DataKey, DataResource> consumer =
                 resourceType == ID ? combiningConsumer : overwritingConsumer;
-            String elementName = XmlResourceValues.getElementName(start);
-            if (elementName == null) {
-              throw new XMLStreamException(
-                  String.format("resource name is required for %s", resourceType),
-                  start.getLocation());
-            }
-            FullyQualifiedName key = fqnFactory.create(resourceType, elementName);
-            XmlResourceValue xmlResourceValue =
-                parseXmlElements(resourceType, eventReader, start, namespacesCollector);
+            FullyQualifiedName key =
+                fqnFactory.create(resourceType, XmlResourceValues.getElementName(start));
             consumer.consume(
-                key,
-                DataResourceXml.createWithNamespaces(
-                    path, xmlResourceValue, namespacesCollector.toNamespaces()));
+                key, DataResourceXml.of(path, parseXmlElements(resourceType, eventReader, start)));
           }
         }
       }
@@ -129,14 +116,11 @@ public class DataResourceXml implements DataResource {
     }
   }
 
-  @SuppressWarnings("deprecation")
   public static DataValue from(SerializeFormat.DataValue protoValue, FileSystem currentFileSystem)
       throws InvalidProtocolBufferException {
-    DataValueXml xmlValue = protoValue.getXmlValue();
-    return createWithNamespaces(
+    return of(
         currentFileSystem.getPath(protoValue.getSource().getFilename()),
-        valueFromProto(xmlValue),
-        Namespaces.from(xmlValue.getNamespace()));
+        valueFromProto(protoValue.getXmlValue()));
   }
 
   private static XmlResourceValue valueFromProto(SerializeFormat.DataValueXml proto)
@@ -163,26 +147,23 @@ public class DataResourceXml implements DataResource {
   }
 
   private static XmlResourceValue parseXmlElements(
-      ResourceType resourceType,
-      XMLEventReader eventReader,
-      StartElement start,
-      Namespaces.Collector namespacesCollector)
+      ResourceType resourceType, XMLEventReader eventReader, StartElement start)
       throws XMLStreamException {
     // Handle ids first, as they are a special kind of item.
     if (resourceType == ID) {
-      return XmlResourceValues.parseId(eventReader, start, namespacesCollector);
+      return XmlResourceValues.parseId();
     }
     // Handle item stubs.
     if (XmlResourceValues.isItem(start)) {
-      return XmlResourceValues.parseSimple(eventReader, resourceType, start, namespacesCollector);
+      return XmlResourceValues.parseSimple(eventReader, resourceType, start); 
     }
     switch (resourceType) {
       case STYLE:
         return XmlResourceValues.parseStyle(eventReader, start);
       case ARRAY:
-        return ArrayXmlResourceValue.parseArray(eventReader, start, namespacesCollector);
+        return ArrayXmlResourceValue.parseArray(eventReader, start);
       case PLURALS:
-        return XmlResourceValues.parsePlurals(eventReader, start, namespacesCollector);
+        return XmlResourceValues.parsePlurals(eventReader);
       case ATTR:
         return XmlResourceValues.parseAttr(eventReader, start);
       case LAYOUT:
@@ -204,7 +185,7 @@ public class DataResourceXml implements DataResource {
       case STYLEABLE:
       case TRANSITION:
       case XML:
-        return XmlResourceValues.parseSimple(eventReader, resourceType, start, namespacesCollector);
+        return XmlResourceValues.parseSimple(eventReader, resourceType, start);
       default:
         throw new XMLStreamException(
             String.format("Unhandled resourceType %s", resourceType), start.getLocation());
@@ -218,28 +199,16 @@ public class DataResourceXml implements DataResource {
     return ResourceType.getEnum(start.getName().getLocalPart());
   }
 
-  private final Path source;
-  private final XmlResourceValue xml;
-  private final Namespaces namespaces;
+  private Path source;
+  private XmlResourceValue xml;
 
-  private DataResourceXml(Path source, XmlResourceValue xmlValue, Namespaces namespaces) {
+  private DataResourceXml(Path source, XmlResourceValue xmlValue) {
     this.source = source;
     this.xml = xmlValue;
-    this.namespaces = namespaces;
   }
 
-  public static DataResourceXml createWithNoNamespace(Path source, XmlResourceValue xml) {
-    return createWithNamespaces(source, xml, ImmutableMap.<String, String>of());
-  }
-
-  public static DataResourceXml createWithNamespaces(
-      Path source, XmlResourceValue xml, ImmutableMap<String, String> prefixToUri) {
-    return createWithNamespaces(source, xml, Namespaces.from(prefixToUri));
-  }
-
-  public static DataResourceXml createWithNamespaces(
-      Path source, XmlResourceValue xml, Namespaces namespaces) {
-    return new DataResourceXml(source, xml, namespaces);
+  public static DataResourceXml of(Path source, XmlResourceValue xml) {
+    return new DataResourceXml(source, xml);
   }
 
   @Override
@@ -249,7 +218,7 @@ public class DataResourceXml implements DataResource {
 
   @Override
   public int hashCode() {
-    return Objects.hash(source, xml, namespaces);
+    return Objects.hash(source, xml);
   }
 
   @Override
@@ -258,29 +227,22 @@ public class DataResourceXml implements DataResource {
       return false;
     }
     DataResourceXml other = (DataResourceXml) obj;
-    return Objects.equals(source, other.source)
-        && Objects.equals(xml, other.xml)
-        && Objects.equals(namespaces, other.namespaces);
+    return Objects.equals(source, other.source) && Objects.equals(xml, other.xml);
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(getClass())
-        .add("source", source)
-        .add("xml", xml)
-        .add("namespaces", namespaces)
-        .toString();
+    return MoreObjects.toStringHelper(getClass()).add("source", source).add("xml", xml).toString();
   }
 
   @Override
   public void writeResource(FullyQualifiedName key, AndroidDataWritingVisitor mergedDataWriter) {
-    mergedDataWriter.defineNamespacesFor(key, namespaces);
     xml.write(key, source, mergedDataWriter);
   }
 
   @Override
   public int serializeTo(DataKey key, OutputStream outStream) throws IOException {
-    return xml.serializeTo(source, namespaces, outStream);
+    return xml.serializeTo(source, outStream);
   }
 
   // TODO(corysmith): Clean up all the casting. The type structure is unclean.
@@ -292,7 +254,6 @@ public class DataResourceXml implements DataResource {
     DataResourceXml xmlResource = (DataResourceXml) resource;
     // TODO(corysmith): Combine the sources so that we know both of the originating files.
     // For right now, use the current source.
-    return createWithNamespaces(
-        source, xml.combineWith(xmlResource.xml), namespaces.union(xmlResource.namespaces));
+    return of(source, xml.combineWith(xmlResource.xml));
   }
 }

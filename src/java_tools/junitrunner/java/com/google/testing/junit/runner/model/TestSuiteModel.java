@@ -24,6 +24,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Ticker;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.testing.junit.junit4.runner.DynamicTestException;
 import com.google.testing.junit.runner.sharding.ShardingEnvironment;
 import com.google.testing.junit.runner.sharding.ShardingFilters;
@@ -36,7 +37,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StringWriter;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -285,7 +285,7 @@ public class TestSuiteModel {
     }
 
     private Filter getShardingFilter(Description... topLevelSuites) {
-      Collection<Description> tests = new LinkedList<>();
+      Collection<Description> tests = Lists.newLinkedList();
       for (Description suite : topLevelSuites) {
         collectTests(suite, tests);
       }

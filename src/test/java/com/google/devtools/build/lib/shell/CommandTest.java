@@ -86,6 +86,14 @@ public class CommandTest {
   }
 
   @Test
+  public void testProcessBuilderConstructor() throws Exception {
+    String helloWorld = "Hello, world";
+    ProcessBuilder builder = new ProcessBuilder("/bin/echo", helloWorld);
+    byte[] stdout = new Command(builder).execute().getStdout();
+    assertEquals(helloWorld + '\n', new String(stdout, "UTF-8"));
+  }
+
+  @Test
   public void testGetters() {
     final File workingDir = new File(".");
     final Map<String,String> env = Collections.singletonMap("foo", "bar");
@@ -582,7 +590,7 @@ public class CommandTest {
   /**
    * Helper to test KillableObserver classes.
    */
-  private static class KillableTester implements Killable {
+  private class KillableTester implements Killable {
     private boolean isKilled = false;
     private boolean timedOut = false;
     @Override

@@ -79,10 +79,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.FileHandler;
-import java.util.logging.Formatter;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -123,13 +119,14 @@ import javax.xml.parsers.ParserConfigurationException;
  */
 public class ResourceShrinker {
 
+  private static final Logger logger = Logger.getLogger(ResourceShrinker.class.getName());
+
   public static final int TYPICAL_RESOURCE_COUNT = 200;
   private final Set<String> resourcePackages;
   private final Path rTxt;
   private final Path classesJar;
   private final Path mergedManifest;
   private final Path mergedResourceDir;
-  private final Logger logger;
 
   /**
    * The computed set of unused resources
@@ -161,30 +158,12 @@ public class ResourceShrinker {
       @NonNull Path rTxt,
       @NonNull Path classesJar,
       @NonNull Path manifest,
-      @NonNull Path resources,
-      Path logFile) {
+      @NonNull Path resources) {
     this.resourcePackages = resourcePackages;
     this.rTxt = rTxt;
     this.classesJar = classesJar;
     this.mergedManifest = manifest;
     this.mergedResourceDir = resources;
-
-    this.logger = Logger.getLogger(getClass().getName());
-    logger.setLevel(Level.FINE);
-    if (logFile != null) {
-      try {
-        FileHandler fileHandler = new FileHandler(logFile.toString());
-        fileHandler.setLevel(Level.FINE);
-        fileHandler.setFormatter(new Formatter(){
-          @Override public String format(LogRecord record) {
-            return record.getMessage() + "\n";
-          }
-        });
-        logger.addHandler(fileHandler);
-      } catch (SecurityException | IOException e) {
-        logger.warning(String.format("Unable to open '%s' to write log.", logFile));
-      }
-    }
   }
 
   public void shrink(Path destinationDir) throws IOException,
@@ -446,8 +425,8 @@ public class ResourceShrinker {
         roots.add(resource);
       }
     }
-    logger.fine(String.format("The root reachable resources are:\n  %s",
-        Joiner.on(",\n  ").join(roots)));
+    logger.fine(String.format("The root reachable resources are: %s",
+        Joiner.on(",\n   ").join(roots)));
     Map<Resource, Boolean> seen = new IdentityHashMap<>(resources.size());
     for (Resource root : roots) {
       visit(root, seen);

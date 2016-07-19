@@ -25,6 +25,7 @@ import com.google.devtools.build.lib.analysis.config.CompilationMode;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.packages.BuildType;
+import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
 import com.google.devtools.build.lib.rules.RuleConfiguredTargetFactory;
 import com.google.devtools.build.lib.rules.android.AndroidLibraryAarProvider.Aar;
 import com.google.devtools.build.lib.rules.android.AndroidResourcesProvider.ResourceContainer;
@@ -77,8 +78,7 @@ public abstract class AndroidLibrary implements RuleConfiguredTargetFactory {
 
     final ResourceApk resourceApk;
     if (definesLocalResources) {
-      ApplicationManifest applicationManifest = androidSemantics.getManifestForRule(ruleContext)
-          .renamePackage(ruleContext, AndroidCommon.getJavaPackage(ruleContext));
+      ApplicationManifest applicationManifest = androidSemantics.getManifestForRule(ruleContext);
       resourceApk = applicationManifest.packWithDataAndResources(
           null, /* resourceApk -- not needed for library */
           ruleContext,
@@ -90,8 +90,11 @@ public abstract class AndroidLibrary implements RuleConfiguredTargetFactory {
           ImmutableList.<String>of(), /* uncompressedExtensions */
           false, /* crunchPng */
           ImmutableList.<String>of(), /* densities */
-          false, /* incremental */
-          null, /* proguardCfgOut */
+          null /* applicationId */,
+          null /* versionCode */,
+          null /* versionName */,
+          false,
+          null /* proguardCfgOut */,
           null, /* mainDexProguardCfg */
           ruleContext.getImplicitOutputArtifact(AndroidRuleClasses.ANDROID_PROCESSED_MANIFEST),
           null /* mergedResourcesOut */);
@@ -116,8 +119,7 @@ public abstract class AndroidLibrary implements RuleConfiguredTargetFactory {
         androidSemantics,
         resourceApk,
         false /* addCoverageSupport */,
-        true /* collectJavaCompilationArgs */,
-        false /* isBinary */);
+        true /* collectJavaCompilationArgs */);
     if (javaTargetAttributes == null) {
       return null;
     }
@@ -143,8 +145,7 @@ public abstract class AndroidLibrary implements RuleConfiguredTargetFactory {
     } else {
       // there are no local resources and resources attribute was not specified either
       aar = null;
-      ApplicationManifest applicationManifest = ApplicationManifest.generatedManifest(ruleContext)
-          .renamePackage(ruleContext, AndroidCommon.getJavaPackage(ruleContext));
+      ApplicationManifest applicationManifest = ApplicationManifest.generatedManifest(ruleContext);
 
       String javaPackage = AndroidCommon.getJavaPackage(ruleContext);
 
@@ -199,7 +200,7 @@ public abstract class AndroidLibrary implements RuleConfiguredTargetFactory {
       .add(ProguardSpecProvider.class, new ProguardSpecProvider(transitiveProguardConfigs))
       .addOutputGroup(OutputGroupProvider.HIDDEN_TOP_LEVEL, transitiveProguardConfigs)
       .add(AndroidLibraryAarProvider.class, new AndroidLibraryAarProvider(
-          aar, transitiveAars.build()))
+                  aar, transitiveAars.build()))
       .build();
   }
 

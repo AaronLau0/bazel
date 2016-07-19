@@ -8,16 +8,9 @@ filegroup(
 )
 
 filegroup(
-    name = "coverage_support",
-    srcs = [],
-)
-
-filegroup(
-    name = "coverage_report_generator",
-    srcs = ["dummy_coverage_report_generator"],
-)
-
-filegroup(
     name = "srcs",
-    srcs = glob(["*"]),
+    srcs = [
+        "BUILD",
+        "test-setup.sh",
+    ],
 )

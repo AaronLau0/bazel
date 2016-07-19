@@ -287,8 +287,7 @@ EOF
 
 }
 
-function top_level_dir_changes_helper() {
-  batch_flag="$1"
+function test_top_level_dir_changes() {
   mkdir -p r/subdir m
   touch r/one r/subdir/two
 
@@ -306,24 +305,16 @@ genrule(
 )
 EOF
   cd m
-  bazel "$batch_flag" build @r//:fg &> $TEST_log || \
+  bazel build @r//:fg &> $TEST_log || \
     fail "Expected build to succeed"
   touch ../r/three
-  bazel "$batch_flag" build @r//:fg &> $TEST_log || \
+  bazel build @r//:fg &> $TEST_log || \
     fail "Expected build to succeed"
   assert_contains "external/r/three" bazel-genfiles/external/r/fg.out
   touch ../r/subdir/four
-  bazel "$batch_flag" build @r//:fg &> $TEST_log || \
+  bazel build @r//:fg &> $TEST_log || \
     fail "Expected build to succeed"
   assert_contains "external/r/subdir/four" bazel-genfiles/external/r/fg.out
-}
-
-function test_top_level_dir_changes_batch() {
-  top_level_dir_changes_helper --batch
-}
-
-function test_top_level_dir_changes_nobatch() {
-  top_level_dir_changes_helper --nobatch
 }
 
 run_suite "//external correctness tests"

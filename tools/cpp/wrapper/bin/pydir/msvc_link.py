@@ -15,6 +15,7 @@
 """Wrapper script for executing the Microsoft Linker."""
 
 import os
+import shutil
 import sys
 import msvc_tools
 
@@ -32,7 +33,7 @@ LINKPATTERNS = [
     ('-l(.+)', ['lib$0.so']),
     ('-L(.+)', ['/LIBPATH:$PATH0']),
     ('-static', []),
-    ('-shared', ['/DLL']),
+    ('-shared', []),
     ('-whole-archive', []),
     ('-no-whole-archive', []),
     ('-rdynamic', []),
@@ -69,9 +70,15 @@ class MsvcLinker(msvc_tools.WindowsRunner):
 
     # Find the output file name.
     name = ''
+    self.output_dll_file = None
     for arg in parser.options:
       if '/OUT:' in arg:
         name = arg[5:]
+        # if output file ends with .so.exe, we generate dll library.
+        if name.endswith('.so.exe'):
+          default_args.append('/DLL')
+          self.output_dll_file = os.path.normpath(name[0:-7])
+        break
     if not name:
       raise msvc_tools.Error('No output file name specified!')
     # Check if the library is empty, which is what happens when we create header
@@ -82,9 +89,9 @@ class MsvcLinker(msvc_tools.WindowsRunner):
       with open(name, 'w'):
         os.utime(name, None)
     else:
-      # If the output name ends in .lo, or .a, it is a library, otherwise
+      # If the output name ends in .so, .lo, or .a, it is a library, otherwise
       # we need to use link to create an executable.
-      if os.path.splitext(name)[1] not in ['.a', '.lo']:
+      if os.path.splitext(name)[1] not in ['.a', '.lo', '.so']:
         tool = 'link'
 
         if not parser.target_arch:
@@ -116,8 +123,12 @@ class MsvcLinker(msvc_tools.WindowsRunner):
           else:
             default_args.insert(0, 'libcmt.lib')
 
-      return self.RunBinary(tool, default_args + parser.options,
-                            parser.target_arch, parser)
+      ret_code = self.RunBinary(tool, default_args + parser.options,
+                                parser.target_arch, parser)
+      if not ret_code and self.output_dll_file:
+        shutil.copyfile(self.output_dll_file + '.so.exe',
+                        self.output_dll_file + '.dll')
+      return ret_code
 
 
 def main(argv):

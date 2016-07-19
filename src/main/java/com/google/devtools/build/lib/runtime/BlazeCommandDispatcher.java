@@ -33,7 +33,6 @@ import com.google.devtools.build.lib.events.Reporter;
 import com.google.devtools.build.lib.flags.InvocationPolicyEnforcer;
 import com.google.devtools.build.lib.util.AbruptExitException;
 import com.google.devtools.build.lib.util.AnsiStrippingOutputStream;
-import com.google.devtools.build.lib.util.BlazeClock;
 import com.google.devtools.build.lib.util.ExitCode;
 import com.google.devtools.build.lib.util.LoggingUtil;
 import com.google.devtools.build.lib.util.Pair;
@@ -291,20 +290,13 @@ public class BlazeCommandDispatcher {
     }
 
 
-    long waitTimeInMs = 0;
     synchronized (commandLock) {
-      boolean warningPrinted = false;
-      while (currentClientDescription != null) {
+      if (currentClientDescription != null) {
         switch (lockingMode) {
           case WAIT:
-            if (!warningPrinted) {
-              outErr.printErrLn("Another command (" + currentClientDescription + ") is running. "
-                  + " Waiting for it to complete...");
-              warningPrinted = true;
-            }
-            long clockBefore = BlazeClock.nanoTime();
+            outErr.printErrLn("Another command (" + currentClientDescription + ") is running. "
+                + " Waiting for it to complete...");
             commandLock.wait();
-            waitTimeInMs = (BlazeClock.nanoTime() - clockBefore) / (1000L * 1000L);
             break;
 
           case ERROR_OUT:
@@ -321,7 +313,7 @@ public class BlazeCommandDispatcher {
     }
 
     try {
-      return execExclusively(args, outErr, firstContactTime, commandName, command, waitTimeInMs);
+      return execExclusively(args, outErr, firstContactTime, commandName, command);
     } finally {
       synchronized (commandLock) {
         currentClientDescription = null;
@@ -331,8 +323,7 @@ public class BlazeCommandDispatcher {
   }
 
   private int execExclusively(List<String> args, OutErr outErr, long firstContactTime,
-      String commandName, BlazeCommand command, long waitTimeInMs)
-      throws ShutdownBlazeServerException {
+      String commandName, BlazeCommand command) throws ShutdownBlazeServerException {
     Command commandAnnotation = command.getClass().getAnnotation(Command.class);
 
     // Record the start time for the profiler. Do not put anything before this!
@@ -471,8 +462,7 @@ public class BlazeCommandDispatcher {
 
       try {
         // Notify the BlazeRuntime, so it can do some initial setup.
-        env.beforeCommand(commandAnnotation, optionsParser, commonOptions, execStartTimeNanos,
-            waitTimeInMs);
+        env.beforeCommand(commandAnnotation, optionsParser, commonOptions, execStartTimeNanos);
         // Allow the command to edit options after parsing:
         command.editOptions(env, optionsParser);
       } catch (AbruptExitException e) {
@@ -493,7 +483,6 @@ public class BlazeCommandDispatcher {
       numericExitCode = e.getExitStatus();
       throw e;
     } catch (Throwable e) {
-      e.printStackTrace();
       BugReport.printBug(outErr, e);
       BugReport.sendBugReport(e, args, crashData);
       numericExitCode = e instanceof OutOfMemoryError
@@ -501,7 +490,6 @@ public class BlazeCommandDispatcher {
           : ExitCode.BLAZE_INTERNAL_ERROR.getNumericExitCode();
       throw new ShutdownBlazeServerException(numericExitCode, ShutdownMethod.CLEAN, e);
     } finally {
-      env.getEventBus().post(new AfterCommandEvent());
       runtime.afterCommand(env, numericExitCode);
       // Swallow IOException, as we are already in a finally clause
       Flushables.flushQuietly(outErr.getOutputStream());

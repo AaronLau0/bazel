@@ -34,7 +34,7 @@ public final class SkylarkModuleDoc extends SkylarkDoc {
   private final Map<String, SkylarkBuiltinMethodDoc> builtinMethodMap;
   private ArrayList<SkylarkJavaMethodDoc> javaMethods;
   private TreeMap<String, SkylarkMethodDoc> methodMap;
-  private final String title;
+  private String title;
 
   public SkylarkModuleDoc(SkylarkModule module, Class<?> classObject) {
     this.module = Preconditions.checkNotNull(
@@ -43,11 +43,7 @@ public final class SkylarkModuleDoc extends SkylarkDoc {
     this.builtinMethodMap = new TreeMap<>();
     this.methodMap = new TreeMap<>();
     this.javaMethods = new ArrayList<>();
-    if (module.title().isEmpty()) {
-      this.title = module.name();
-    } else {
-      this.title = module.title();
-    }
+    this.title = module.name();
   }
 
   @Override
@@ -62,6 +58,10 @@ public final class SkylarkModuleDoc extends SkylarkDoc {
 
   public String getTitle() {
     return title;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
   }
 
   public SkylarkModule getAnnotation() {

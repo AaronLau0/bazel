@@ -15,6 +15,7 @@
 package com.google.devtools.build.lib.rules.cpp;
 
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.actions.Root;
 import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.rules.cpp.CppConfiguration.HeadersCheckingMode;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -58,4 +59,9 @@ public interface CppSemantics {
    * in the action graph.
    */
   boolean needsIncludeScanning(RuleContext ruleContext);
+
+  /**
+   * Returns the configuration-independent grepped-includes directory.
+   */
+  Root getGreppedIncludesDirectory(RuleContext ruleContext);
 }

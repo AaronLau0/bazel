@@ -89,7 +89,7 @@ public final class Actions {
    *     more than one action generating the same output artifact, only one action is chosen.
    * @throws ActionConflictException iff there are two actions generate the same output
    */
-  public static ImmutableMap<Artifact, ActionAnalysisMetadata> findAndThrowActionConflict(
+  public static Map<Artifact, ActionAnalysisMetadata> findAndThrowActionConflict(
       Iterable<ActionAnalysisMetadata> actions) throws ActionConflictException {
     return Actions.maybeFilterSharedActionsAndThrowIfConflict(
         actions, /*allowSharedAction=*/ false);
@@ -105,15 +105,13 @@ public final class Actions {
    * @throws ActionConflictException iff there are two unshareable actions generating the same
    *     output
    */
-  public static ImmutableMap<Artifact, ActionAnalysisMetadata>
-      filterSharedActionsAndThrowActionConflict(
+  public static Map<Artifact, ActionAnalysisMetadata> filterSharedActionsAndThrowActionConflict(
       Iterable<? extends ActionAnalysisMetadata> actions) throws ActionConflictException {
     return Actions.maybeFilterSharedActionsAndThrowIfConflict(
         actions, /*allowSharedAction=*/ true);
   }
 
-  private static ImmutableMap<Artifact, ActionAnalysisMetadata>
-      maybeFilterSharedActionsAndThrowIfConflict(
+  private static Map<Artifact, ActionAnalysisMetadata> maybeFilterSharedActionsAndThrowIfConflict(
       Iterable<? extends ActionAnalysisMetadata> actions, boolean allowSharedAction)
       throws ActionConflictException {
     Map<Artifact, ActionAnalysisMetadata> generatingActions = new HashMap<>();
@@ -127,7 +125,7 @@ public final class Actions {
         }
       }
     }
-    return ImmutableMap.copyOf(generatingActions);
+    return generatingActions;
   }
 
   /**

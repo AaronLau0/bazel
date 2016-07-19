@@ -815,10 +815,6 @@ class OptionsParserImpl {
         || findConverter(field) instanceof BoolOrEnumConverter;
   }
 
-  static boolean isVoidField(Field field) {
-    return field.getType().equals(Void.class);
-  }
-
   static boolean isSpecialNullDefault(String defaultValueString, Field optionField) {
     return defaultValueString.equals("null") && !optionField.getType().isPrimitive();
   }

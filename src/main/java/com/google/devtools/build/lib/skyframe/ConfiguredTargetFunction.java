@@ -134,10 +134,6 @@ final class ConfiguredTargetFunction implements SkyFunction {
     this.ruleClassProvider = ruleClassProvider;
   }
 
-  private static boolean useDynamicConfigurations(BuildConfiguration config) {
-    return config != null && config.useDynamicConfigurations();
-  }
-
   @Override
   public SkyValue compute(SkyKey key, Environment env) throws ConfiguredTargetFunctionException,
       InterruptedException {
@@ -177,17 +173,6 @@ final class ConfiguredTargetFunction implements SkyFunction {
     if (!target.isConfigurable()) {
       configuration = null;
     }
-
-    // This line is only needed for accurate error messaging. Say this target has a circular
-    // dependency with one of its deps. With this line, loading this target fails so Bazel
-    // associates the corresponding error with this target, as expected. Without this line,
-    // the first TransitiveTargetValue call happens on its dep (in trimConfigurations), so Bazel
-    // associates the error with the dep, which is misleading.
-    if (useDynamicConfigurations(configuration)
-        && env.getValue(TransitiveTargetValue.key(lc.getLabel())) == null) {
-      return null;
-    }
-
     TargetAndConfiguration ctgValue = new TargetAndConfiguration(target, configuration);
 
     SkyframeDependencyResolver resolver = view.createDependencyResolver(env);
@@ -298,7 +283,8 @@ final class ConfiguredTargetFunction implements SkyFunction {
 
     // Trim each dep's configuration so it only includes the fragments needed by its transitive
     // closure (only dynamic configurations support this).
-    if (useDynamicConfigurations(ctgValue.getConfiguration())) {
+    if (ctgValue.getConfiguration() != null
+        && ctgValue.getConfiguration().useDynamicConfigurations()) {
       depValueNames = trimConfigurations(env, ctgValue, depValueNames, hostConfiguration,
           ruleClassProvider);
       if (depValueNames == null) {
@@ -739,7 +725,7 @@ final class ConfiguredTargetFunction implements SkyFunction {
     // TODO(bazel-team): remove the need for this special transformation. We can probably do this by
     // simply passing this through trimConfigurations.
     BuildConfiguration targetConfig = ctgValue.getConfiguration();
-    if (useDynamicConfigurations(targetConfig)) {
+    if (targetConfig != null && targetConfig.useDynamicConfigurations()) {
       ImmutableList.Builder<Dependency> staticConfigs = ImmutableList.builder();
       for (Dependency dep : configValueNames) {
         staticConfigs.add(
@@ -862,7 +848,7 @@ final class ConfiguredTargetFunction implements SkyFunction {
     analysisEnvironment.disable(target);
     Preconditions.checkNotNull(configuredTarget, target);
 
-    ImmutableMap<Artifact, ActionAnalysisMetadata> generatingActions;
+    Map<Artifact, ActionAnalysisMetadata> generatingActions;
     // Check for conflicting actions within this configured target (that indicates a bug in the
     // rule implementation).
     try {

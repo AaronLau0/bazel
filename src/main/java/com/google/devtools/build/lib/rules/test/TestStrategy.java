@@ -357,8 +357,7 @@ public abstract class TestStrategy implements TestActionContext {
       ActionExecutionContext actionExecutionContext,
       BinTools binTools,
       PathFragment shExecutable,
-      ImmutableMap<String, String> shellEnvironment,
-      boolean enableRunfiles)
+      ImmutableMap<String, String> shellEnvironment)
       throws ExecException, InterruptedException {
     TestTargetExecutionSettings execSettings = testAction.getExecutionSettings();
 
@@ -381,14 +380,8 @@ public abstract class TestStrategy implements TestActionContext {
     long startTime = Profiler.nanoTimeMaybe();
     synchronized (execSettings.getInputManifest()) {
       Profiler.instance().logSimpleTask(startTime, ProfilerTask.WAIT, testAction);
-      updateLocalRunfilesDirectory(
-          testAction,
-          runfilesDir,
-          actionExecutionContext,
-          binTools,
-          shExecutable,
-          shellEnvironment,
-          enableRunfiles);
+      updateLocalRunfilesDirectory(testAction, runfilesDir, actionExecutionContext, binTools,
+          shExecutable, shellEnvironment);
     }
 
     return runfilesDir;
@@ -406,8 +399,7 @@ public abstract class TestStrategy implements TestActionContext {
       ActionExecutionContext actionExecutionContext,
       BinTools binTools,
       PathFragment shExecutable,
-      ImmutableMap<String, String> shellEnvironment,
-      boolean enableRunfiles)
+      ImmutableMap<String, String> shellEnvironment)
       throws ExecException, InterruptedException {
     Executor executor = actionExecutionContext.getExecutor();
 
@@ -431,12 +423,7 @@ public abstract class TestStrategy implements TestActionContext {
             runfilesDir.relativeTo(executor.getExecRoot()), /* filesetTree= */
             false)
         .createSymlinks(
-            testAction,
-            actionExecutionContext,
-            binTools,
-            shExecutable,
-            shellEnvironment,
-            enableRunfiles);
+            testAction, actionExecutionContext, binTools, shExecutable, shellEnvironment);
 
     executor.getEventHandler().handle(Event.progress(testAction.getProgressMessage()));
   }

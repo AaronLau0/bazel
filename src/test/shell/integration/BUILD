@@ -1,12 +1,6 @@
 package(default_visibility = ["//visibility:private"])
 
 filegroup(
-    name = "srcs",
-    srcs = glob(["**"]),
-    visibility = ["//src/test/shell:__pkg__"],
-)
-
-filegroup(
     name = "test-deps",
     testonly = 1,
     srcs = [

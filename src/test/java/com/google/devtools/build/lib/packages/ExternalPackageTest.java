@@ -50,7 +50,7 @@ public class ExternalPackageTest extends BuildViewTestCase {
         "    build_file = 'baz',",
         ")");
 
-    invalidatePackages(/*alsoConfigs=*/false);
+    invalidatePackages();
     // Make sure the second rule "wins."
     assertEquals("new_local_repository rule", getTarget("//external:my_rule").getTargetKind());
   }
@@ -68,7 +68,7 @@ public class ExternalPackageTest extends BuildViewTestCase {
         "    build_file = 'baz',",
         ")");
 
-    invalidatePackages(/*alsoConfigs=*/false);
+    invalidatePackages();
     // Make sure the second rule "wins."
     assertEquals("new_local_repository rule", getTarget("//external:my_rule").getTargetKind());
   }

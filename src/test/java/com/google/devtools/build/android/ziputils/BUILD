@@ -1,9 +1,3 @@
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]),
-    visibility = ["//src/test/java/com/google/devtools/build/android:__pkg__"],
-)
-
 java_test(
     name = "ziputils-tests",
     srcs = glob(["*.java"]),

@@ -2,18 +2,6 @@ package(
     default_visibility = ["//src/test/java/com/google/devtools/build/lib:__subpackages__"],
 )
 
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]) + [
-        "//src/test/java/com/google/devtools/build/lib/skylark:srcs",
-        "//src/test/java/com/google/devtools/build/lib/skyframe:srcs",
-        "//src/test/java/com/google/devtools/build/lib/rules/repository:srcs",
-        "//src/test/java/com/google/devtools/build/lib/bazel/repository:srcs",
-        "//src/test/java/com/google/devtools/build/lib/buildtool:srcs",
-    ],
-    visibility = ["//src:__pkg__"],
-)
-
 # This should correspond to the list of "EMBEDDED_TOOLS" in TestConstants.java.bazel.
 filegroup(
     name = "embedded_scripts",
@@ -21,7 +9,7 @@ filegroup(
     data = [
         "//src/main/tools:build-runfiles",
         "//src/main/tools:build_interface_so",
-        "//src/main/tools:linux-sandbox",
+        "//src/main/tools:namespace-sandbox",
         "//src/main/tools:process-wrapper",
     ],
 )
@@ -58,13 +46,10 @@ java_library(
         "vfs/util/*.java",
         "events/util/*.java",
     ]),
-    data = select({
-        "//src:windows": [],
-        "//conditions:default": [
-            "//src/main/native:libunix.dylib",
-            "//src/main/native:libunix.so",
-        ],
-    }),
+    data = [
+        "//src/main/native:libunix.dylib",
+        "//src/main/native:libunix.so",
+    ],
     deps = [
         ":testutil",
         "//src/main/java/com/google/devtools/build/lib:bazel-main",
@@ -118,10 +103,7 @@ java_test(
         ],
     ),
     data = glob(["vfs/*.zip"]),
-    tags = [
-        "foundations",
-        "no_windows",
-    ],
+    tags = ["foundations"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":foundations_testutil",
@@ -148,8 +130,6 @@ java_test(
     ],
 )
 
-# Tests that test Windows-specific functionality that run on other operating
-# systems
 java_test(
     name = "windows_test",
     srcs = [
@@ -168,45 +148,10 @@ java_test(
         "//src/main/java/com/google/devtools/build/lib:inmemoryfs",
         "//src/main/java/com/google/devtools/build/lib:util",
         "//src/main/java/com/google/devtools/build/lib:vfs",
-        "//src/main/java/com/google/devtools/build/lib:windows",
         "//src/main/java/com/google/devtools/common/options",
         "//third_party:guava",
         "//third_party:guava-testlib",
         "//third_party:junit4",
-        "//third_party:truth",
-    ],
-)
-
-java_library(
-    name = "windows_testutil",
-    srcs = [
-        "windows/util/WindowsTestUtil.java",
-    ],
-)
-
-# Tests that need to run on Windows
-java_test(
-    name = "windows-tests",
-    srcs = glob(
-        ["windows/*.java"],
-        exclude = ["windows/MockSubprocess.java"],
-    ),
-    data = [
-        ":MockSubprocess_deploy.jar",
-    ] + select({
-        "//src:windows": ["//src/main/native:windows_jni.dll"],
-        "//conditions:default": [
-            "//src/main/native:libunix.dylib",
-            "//src/main/native:libunix.so",
-        ],
-    }),
-    test_class = "com.google.devtools.build.lib.AllTests",
-    deps = [
-        ":test_runner",
-        ":testutil",
-        ":windows_testutil",
-        "//src/main/java/com/google/devtools/build/lib:os_util",
-        "//src/main/java/com/google/devtools/build/lib:windows",
         "//third_party:truth",
     ],
 )
@@ -284,7 +229,7 @@ java_library(
         "exec/util/*.java",
     ]),
     resources = [
-        "analysis/mock/MOCK_CROSSTOOL",
+        "MOCK_CROSSTOOL",
     ],
     tags = ["analysis"],
     exports = [
@@ -451,10 +396,7 @@ java_test(
         "analysis/*.java",
     ]),
     shard_count = 2,
-    tags = [
-        "analysis",
-        "no_windows",
-    ],
+    tags = ["analysis"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":actions_testutil",
@@ -652,10 +594,7 @@ java_test(
         ":shell/killmyself",
     ],
     flaky = True,
-    tags = [
-        "no_windows",
-        "shell",
-    ],
+    tags = ["shell"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":foundations_testutil",
@@ -678,10 +617,7 @@ java_test(
     srcs = glob([
         "server/*.java",
     ]),
-    tags = [
-        "no_windows",
-        "server",
-    ],
+    tags = ["server"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":foundations_testutil",
@@ -778,10 +714,8 @@ java_test(
     deps = [
         ":foundations_testutil",
         ":packages_testutil",
-        ":windows_testutil",
         "//src/main/java/com/google/devtools/build/lib:bazel-main",
         "//src/main/java/com/google/devtools/build/lib:bazel-rules",
-        "//src/main/java/com/google/devtools/build/lib:os_util",
         "//src/main/java/com/google/devtools/build/lib:packages",
         "//third_party:guava",
         "//third_party:guava-testlib",
@@ -830,7 +764,6 @@ java_test(
         "//src/main/java/com/google/devtools/build/lib:bazel-main",
         "//src/main/java/com/google/devtools/build/lib:bazel-rules",
         "//src/main/java/com/google/devtools/build/lib:build-base",
-        "//src/main/java/com/google/devtools/build/lib:java-rules",
         "//src/main/java/com/google/devtools/build/lib:util",
         "//src/main/java/com/google/devtools/build/lib:vfs",
         "//third_party:guava",
@@ -966,7 +899,6 @@ java_test(
     name = "sandbox-tests",
     srcs = glob(["sandbox/*.java"]),
     data = [":embedded_scripts"],
-    tags = ["no_windows"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":actions_testutil",
@@ -994,7 +926,6 @@ java_test(
     name = "standalone-tests",
     srcs = glob(["standalone/*.java"]),
     data = [":embedded_scripts"],
-    tags = ["no_windows"],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
         ":actions_testutil",
@@ -1041,11 +972,6 @@ java_test(
         "//third_party:truth",
         "//third_party/protobuf",
     ],
-)
-
-java_binary(
-    name = "MockSubprocess",
-    srcs = ["windows/MockSubprocess.java"],
 )
 
 java_library(

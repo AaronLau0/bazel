@@ -14,8 +14,6 @@
 
 package com.google.devtools.build.lib;
 
-import com.google.devtools.build.lib.util.OS;
-
 import java.io.File;
 
 /**
@@ -24,9 +22,7 @@ import java.io.File;
 public class UnixJniLoader {
   public static void loadJni() {
     try {
-      if (OS.getCurrent() != OS.WINDOWS) {
-        System.loadLibrary("unix");
-      }
+      System.loadLibrary("unix");
     } catch (UnsatisfiedLinkError ex) {
       // We are probably in tests, let's try to find the library relative to where we are.
       File cwd = new File(System.getProperty("user.dir"));

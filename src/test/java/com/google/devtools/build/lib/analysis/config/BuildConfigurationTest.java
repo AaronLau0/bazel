@@ -29,6 +29,8 @@ import com.google.devtools.build.lib.rules.cpp.CppConfiguration;
 import com.google.devtools.build.lib.rules.cpp.CppOptions;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration;
 import com.google.devtools.build.lib.rules.objc.J2ObjcConfiguration;
+import com.google.devtools.build.lib.testutil.TestConstants;
+import com.google.devtools.build.lib.testutil.TestRuleClassProvider;
 import com.google.devtools.common.options.Options;
 
 import org.junit.Test;
@@ -46,7 +48,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testBasics() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -68,7 +70,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testPlatformSuffix() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -79,7 +81,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testEnvironment() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -105,7 +107,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testHostCrosstoolTop() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -135,17 +137,19 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
     assertEquals(a.cacheKey(), b.cacheKey());
   }
 
-  @Test
-  public void testInvalidCpu() throws Exception {
-    // TODO(ulfjack): It would be better to get the better error message also if the Jvm is enabled.
-    // Currently: "No JVM target found under //tools/jdk:jdk that would work for bogus"
+  private void checkInvalidCpuError(String cpuOption, Pattern messageRegex) throws Exception {
     try {
-      create("--cpu=bogus", "--experimental_disable_jvm");
+      create("--" + cpuOption + "=bogus");
       fail();
     } catch (InvalidConfigurationException e) {
-      assertThat(e.getMessage()).matches(Pattern.compile(
-              "No toolchain found for cpu 'bogus'. Valid cpus are: \\[\n(  [\\w-]+,\n)+]"));
+      assertThat(e.getMessage()).matches(messageRegex);
     }
+  }
+
+  @Test
+  public void testInvalidCpu() throws Exception {
+    checkInvalidCpuError("cpu", Pattern.compile(
+        "No toolchain found for cpu 'bogus'. Valid cpus are: \\[\n(  [\\w-]+,\n)+]"));
   }
 
   @Test
@@ -156,7 +160,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testMultiCpu() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -173,7 +177,7 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
    */
   @Test
   public void testMultiCpuSorting() throws Exception {
-    if (analysisMock.isThisBazel()) {
+    if (TestConstants.THIS_IS_BAZEL) {
       return;
     }
 
@@ -235,11 +239,10 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testCycleInFragments() throws Exception {
-    configurationFactory =
-        new ConfigurationFactory(
-            analysisMock.createConfigurationCollectionFactory(),
-            createMockFragment(CppConfiguration.class, JavaConfiguration.class),
-            createMockFragment(JavaConfiguration.class, CppConfiguration.class));
+    configurationFactory = new ConfigurationFactory(
+        getAnalysisMock().createConfigurationCollectionFactory(),
+        createMockFragment(CppConfiguration.class, JavaConfiguration.class),
+        createMockFragment(JavaConfiguration.class, CppConfiguration.class));
     try {
       createCollection();
       fail();
@@ -250,10 +253,9 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
 
   @Test
   public void testMissingFragment() throws Exception {
-    configurationFactory =
-        new ConfigurationFactory(
-            analysisMock.createConfigurationCollectionFactory(),
-            createMockFragment(CppConfiguration.class, JavaConfiguration.class));
+    configurationFactory = new ConfigurationFactory(
+        getAnalysisMock().createConfigurationCollectionFactory(),
+        createMockFragment(CppConfiguration.class, JavaConfiguration.class));
     try {
       createCollection();
       fail();
@@ -309,10 +311,9 @@ public class BuildConfigurationTest extends ConfigurationTestCase {
   @Test
   public void testEqualsOrIsSupersetOf() throws Exception {
     BuildConfiguration config = create();
-    BuildConfiguration trimmedConfig =
-        config.clone(
-            ImmutableSet.<Class<? extends Fragment>>of(CppConfiguration.class),
-            analysisMock.createRuleClassProvider());
+    BuildConfiguration trimmedConfig = config.clone(
+        ImmutableSet.<Class<? extends Fragment>>of(CppConfiguration.class),
+        TestRuleClassProvider.getRuleClassProvider());
     BuildConfiguration hostConfig = createHost();
 
     assertTrue(config.equalsOrIsSupersetOf(trimmedConfig));

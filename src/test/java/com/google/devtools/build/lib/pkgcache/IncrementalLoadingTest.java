@@ -31,10 +31,10 @@ import com.google.devtools.build.lib.packages.NoSuchPackageException;
 import com.google.devtools.build.lib.packages.NoSuchTargetException;
 import com.google.devtools.build.lib.packages.NoSuchThingException;
 import com.google.devtools.build.lib.packages.Package;
+import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.packages.Preprocessor;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
-import com.google.devtools.build.lib.packages.util.LoadingMock;
 import com.google.devtools.build.lib.skyframe.DiffAwareness;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
 import com.google.devtools.build.lib.skyframe.SequencedSkyframeExecutor;
@@ -42,6 +42,8 @@ import com.google.devtools.build.lib.skyframe.SkyValueDirtinessChecker;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.syntax.GlobList;
 import com.google.devtools.build.lib.testutil.ManualClock;
+import com.google.devtools.build.lib.testutil.TestConstants;
+import com.google.devtools.build.lib.testutil.TestRuleClassProvider;
 import com.google.devtools.build.lib.util.BlazeClock;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.util.io.TimestampGranularityMonitor;
@@ -464,27 +466,21 @@ public class IncrementalLoadingTest {
       outputBase.createDirectory();
       addFile("WORKSPACE");
 
-      LoadingMock loadingMock = LoadingMock.get();
       skyframeExecutor =
           SequencedSkyframeExecutor.create(
-              loadingMock
-                  .getPackageFactoryForTesting()
-                  .create(loadingMock.createRuleClassProvider(), fs),
-              new BlazeDirectories(
-                  fs.getPath("/install"),
-                  fs.getPath("/output"),
-                  workspace,
-                  loadingMock.getProductName()),
+              new PackageFactory(TestRuleClassProvider.getRuleClassProvider()),
+              new BlazeDirectories(fs.getPath("/install"), fs.getPath("/output"), workspace,
+                  TestConstants.PRODUCT_NAME),
               null, /* BinTools */
               null, /* workspaceStatusActionFactory */
-              loadingMock.createRuleClassProvider().getBuildInfoFactories(),
+              TestRuleClassProvider.getRuleClassProvider().getBuildInfoFactories(),
               ImmutableList.of(new ManualDiffAwarenessFactory()),
               Predicates.<PathFragment>alwaysFalse(),
               supplier,
               ImmutableMap.<SkyFunctionName, SkyFunction>of(),
               ImmutableList.<PrecomputedValue.Injected>of(),
               ImmutableList.<SkyValueDirtinessChecker>of(),
-              loadingMock.getProductName());
+              TestConstants.PRODUCT_NAME);
       skyframeExecutor.preparePackageLoading(
           new PathPackageLocator(outputBase, ImmutableList.of(workspace)),
           ConstantRuleVisibility.PUBLIC, true, 7, "",

@@ -22,13 +22,11 @@ package com.google.devtools.build.lib.actions;
 public class ActionStatusMessage {
   private final ActionExecutionMetadata action;
   private final String message;
-  private final String strategy;
   public static final String PREPARING = "Preparing";
 
-  private ActionStatusMessage(ActionExecutionMetadata action, String message, String strategy) {
+  private ActionStatusMessage(ActionExecutionMetadata action, String message) {
     this.action = action;
     this.message = message;
-    this.strategy = strategy;
   }
 
   public ActionExecutionMetadata getActionMetadata() {
@@ -39,31 +37,24 @@ public class ActionStatusMessage {
     return message;
   }
 
-  /**
-   * Return the strategy of the action; null if not created by {@link #runningStrategy}.
-   */
-  public String getStrategy() {
-    return strategy;
-  }
-
   /** Creates "Analyzing" status message. */
   public static ActionStatusMessage analysisStrategy(ActionExecutionMetadata action) {
-    return new ActionStatusMessage(action, "Analyzing", null);
+    return new ActionStatusMessage(action, "Analyzing");
   }
 
   /** Creates "Preparing" status message. */
   public static ActionStatusMessage preparingStrategy(ActionExecutionMetadata action) {
-    return new ActionStatusMessage(action, PREPARING, null);
+    return new ActionStatusMessage(action, PREPARING);
   }
 
   /** Creates "Scheduling" status message. */
   public static ActionStatusMessage schedulingStrategy(ActionExecutionMetadata action) {
-    return new ActionStatusMessage(action, "Scheduling", null);
+    return new ActionStatusMessage(action, "Scheduling");
   }
 
   /** Creates "Running (strategy)" status message. */
   public static ActionStatusMessage runningStrategy(
       ActionExecutionMetadata action, String strategy) {
-    return new ActionStatusMessage(action, String.format("Running (%s)", strategy), strategy);
+    return new ActionStatusMessage(action, String.format("Running (%s)", strategy));
   }
 }

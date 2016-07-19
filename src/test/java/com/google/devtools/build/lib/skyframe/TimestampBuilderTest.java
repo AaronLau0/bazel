@@ -169,8 +169,8 @@ public class TimestampBuilderTest extends TimestampBuilderTestCase {
     buildArtifacts(cachingBuilder(), goodbye);
     assertFalse(button.pressed); // not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    // inMemoryMetadataCache.useFileDigest is false, so new timestamp is enough to force a rebuild.
+    FileSystemUtils.touchFile(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(cachingBuilder(), goodbye);
@@ -231,10 +231,10 @@ public class TimestampBuilderTest extends TimestampBuilderTestCase {
     buildArtifacts(cachingBuilder(), hello);
     assertFalse(button.pressed); // not rebuilt
 
-    // Changing the *output* file 'hello' causes 'action' to re-execute, to make things consistent
-    // again.
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    // Touching the *output* file 'hello' causes 'action' to re-execute, to
+    // make things consistent again; this is not what Make would do, but it is
+    // correct according to this Builder.
+    BlazeTestUtils.changeModtime(hello.getPath());
 
     button.pressed = false;
     buildArtifacts(cachingBuilder(), hello);
@@ -251,8 +251,7 @@ public class TimestampBuilderTest extends TimestampBuilderTestCase {
     Artifact hello = createSourceArtifact("hello");
     BlazeTestUtils.makeEmptyFile(hello.getPath());
     Artifact wazuup = createDerivedArtifact("wazuup");
-    Button button1 = new Button();
-    registerAction(new CopyingAction(button1, hello, wazuup));
+    Button button1 = createActionButton(Sets.newHashSet(hello), Sets.newHashSet(wazuup));
     Artifact goodbye = createDerivedArtifact("goodbye");
     Button button2 = createActionButton(Sets.newHashSet(wazuup), Sets.newHashSet(goodbye));
 
@@ -276,8 +275,7 @@ public class TimestampBuilderTest extends TimestampBuilderTestCase {
     assertFalse(button1.pressed); // wazuup not rebuilt
     assertFalse(button2.pressed); // goodbye not rebuilt
 
-    hello.getPath().setWritable(true);
-    FileSystemUtils.writeContentAsLatin1(hello.getPath(), "new content");
+    FileSystemUtils.touchFile(hello.getPath());
 
     button1.pressed = button2.pressed = false;
     buildArtifacts(cachingBuilder(), goodbye);

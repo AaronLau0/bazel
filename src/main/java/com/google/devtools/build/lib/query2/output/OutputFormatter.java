@@ -170,17 +170,9 @@ public abstract class OutputFormatter implements Serializable {
    * before writting in the output.
    */
   public interface StreamedFormatter {
-    /** Specifies options to be used by subsequent calls to {@link #createStreamCallback}. */
-    void setOptions(QueryOptions options, AspectResolver aspectResolver);
 
-    /**
-     * Returns a {@link OutputFormatterCallback} whose {@link OutputFormatterCallback#process}
-     * outputs formatted {@link Target}s to the given {@code out}.
-     *
-     * <p>Takes any options specified via the most recent call to {@link #setOptions} into
-     * consideration.
-     */
-    OutputFormatterCallback<Target> createStreamCallback(PrintStream out);
+    OutputFormatterCallback<Target> createStreamCallback(QueryOptions options, PrintStream out,
+        AspectResolver aspectResolver);
   }
 
   /**
@@ -190,10 +182,6 @@ public abstract class OutputFormatter implements Serializable {
 
   abstract static class AbstractUnorderedFormatter extends OutputFormatter
       implements StreamedFormatter {
-    protected QueryOptions options;
-    protected AspectResolver aspectResolver;
-    protected DependencyFilter dependencyFilter;
-
     protected Iterable<Target> getOrderedTargets(
         Digraph<Target> result, QueryOptions options) {
       Iterable<Node<Target>> orderedResult =
@@ -204,18 +192,10 @@ public abstract class OutputFormatter implements Serializable {
     }
 
     @Override
-    public void setOptions(QueryOptions options, AspectResolver aspectResolver) {
-      this.options = options;
-      this.aspectResolver = aspectResolver;
-      this.dependencyFilter = OutputFormatter.getDependencyFilter(options);
-    }
-
-    @Override
     public void output(QueryOptions options, Digraph<Target> result, PrintStream out,
         AspectResolver aspectResolver) throws IOException, InterruptedException {
-      setOptions(options, aspectResolver);
       OutputFormatterCallback.processAllTargets(
-          createStreamCallback(out),
+          createStreamCallback(options, out, aspectResolver),
           getOrderedTargets(result, options));
     }
   }
@@ -238,7 +218,8 @@ public abstract class OutputFormatter implements Serializable {
     }
 
     @Override
-    public OutputFormatterCallback<Target> createStreamCallback(final PrintStream out) {
+    public OutputFormatterCallback<Target> createStreamCallback(QueryOptions options,
+        final PrintStream out, AspectResolver aspectResolver) {
       return new OutputFormatterCallback<Target>() {
 
         @Override
@@ -278,7 +259,9 @@ public abstract class OutputFormatter implements Serializable {
     }
 
     @Override
-    public OutputFormatterCallback<Target> createStreamCallback(final PrintStream out) {
+    public OutputFormatterCallback<Target> createStreamCallback(QueryOptions options,
+        final PrintStream out,
+        AspectResolver aspectResolver) {
       return new OutputFormatterCallback<Target>() {
         private final Set<String> packageNames = Sets.newTreeSet();
 
@@ -314,7 +297,9 @@ public abstract class OutputFormatter implements Serializable {
     }
 
     @Override
-    public OutputFormatterCallback<Target> createStreamCallback(final PrintStream out) {
+    public OutputFormatterCallback<Target> createStreamCallback(QueryOptions options,
+        final PrintStream out,
+        AspectResolver aspectResolver) {
       return new OutputFormatterCallback<Target>() {
 
         @Override
@@ -342,7 +327,9 @@ public abstract class OutputFormatter implements Serializable {
     }
 
     @Override
-    public OutputFormatterCallback<Target> createStreamCallback(final PrintStream out) {
+    public OutputFormatterCallback<Target> createStreamCallback(QueryOptions options,
+        final PrintStream out,
+        AspectResolver aspectResolver) {
       return new OutputFormatterCallback<Target>() {
         private final Set<Label> printed = CompactHashSet.create();
 

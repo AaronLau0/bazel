@@ -28,7 +28,6 @@ import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -88,16 +87,7 @@ public final class PathFragment implements Comparable<PathFragment>, Serializabl
     for (int i = 0; i < segments.length; i++) {
       internedSegments[i] = StringCanonicalizer.intern(segments[i]);
     }
-    return new PathFragment(driveLetter, isAbsolute, internedSegments);
-  }
-
-  /** Same as {@link #create(char, boolean, String[])}, except for {@link List}s of segments. */
-  public static PathFragment create(char driveLetter, boolean isAbsolute, List<String> segments) {
-    String[] internedSegments = new String[segments.size()];
-    for (int i = 0; i < segments.size(); i++) {
-      internedSegments[i] = StringCanonicalizer.intern(segments.get(i));
-    }
-    return new PathFragment(driveLetter, isAbsolute, internedSegments);
+    return new PathFragment(driveLetter, isAbsolute, segments);
   }
 
   // We have 3 word-sized fields (segments, hashCode and path), and 2

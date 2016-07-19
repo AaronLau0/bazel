@@ -133,8 +133,8 @@ public class ZipDecompressor implements Decompressor {
             + reader.getFilename() + " has a symlink to " + target);
       }
       if (target.isAbsolute()) {
-        target = target.relativeTo(PathFragment.ROOT_DIR);
-        target = destinationDirectory.getRelative(target).asFragment();
+        throw new IOException("Zip entries cannot be symlinks to absolute paths: "
+            + reader.getFilename() + " has a symlink to " + target);
       }
       outputPath.createSymbolicLink(target);
     } else {

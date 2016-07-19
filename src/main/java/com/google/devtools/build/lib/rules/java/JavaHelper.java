@@ -23,6 +23,7 @@ import com.google.devtools.build.lib.packages.BuildType;
 import com.google.devtools.build.lib.shell.ShellUtils;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.vfs.PathFragment;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,7 +68,8 @@ public abstract class JavaHelper {
     // BUILD rule "launcher" attribute
     if (ruleContext.getRule().isAttrDefined("launcher", BuildType.LABEL)
         && ruleContext.attributes().get("launcher", BuildType.LABEL) != null) {
-      if (semantics.isJdkLauncher(ruleContext.attributes().get("launcher", BuildType.LABEL))) {
+      if (ruleContext.attributes().get("launcher", BuildType.LABEL)
+          .equals(semantics.getJdkLauncherLabel())) {
         return null;
       }
       return "launcher";
@@ -75,8 +77,9 @@ public abstract class JavaHelper {
     // Blaze flag --java_launcher
     JavaConfiguration javaConfig = ruleContext.getFragment(JavaConfiguration.class);
     if (ruleContext.getRule().isAttrDefined(":java_launcher", BuildType.LABEL)
-        && javaConfig.getJavaLauncherLabel() != null
-        && !semantics.isJdkLauncher(javaConfig.getJavaLauncherLabel())) {
+        && ((javaConfig.getJavaLauncherLabel() != null
+                && !javaConfig.getJavaLauncherLabel().equals(semantics.getJdkLauncherLabel()))
+            || semantics.forceUseJavaLauncherTarget(ruleContext))) {
       return ":java_launcher";
     }
     return null;

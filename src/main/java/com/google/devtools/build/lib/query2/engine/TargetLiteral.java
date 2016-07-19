@@ -32,7 +32,7 @@ public final class TargetLiteral extends QueryExpression {
 
   private final String pattern;
 
-  public TargetLiteral(String pattern) {
+  TargetLiteral(String pattern) {
     this.pattern = Preconditions.checkNotNull(pattern);
   }
 
@@ -45,11 +45,11 @@ public final class TargetLiteral extends QueryExpression {
   }
 
   @Override
-  public <T> void eval(QueryEnvironment<T> env, VariableContext<T> context, Callback<T> callback)
+  public <T> void eval(QueryEnvironment<T> env, Callback<T> callback)
       throws QueryException, InterruptedException {
     if (isVariableReference()) {
       String varName = LetExpression.getNameFromReference(pattern);
-      Set<T> value = context.get(varName);
+      Set<T> value = env.getVariable(varName);
       if (value == null) {
         throw new QueryException(this, "undefined variable '" + varName + "'");
       }

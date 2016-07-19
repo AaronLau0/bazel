@@ -112,9 +112,6 @@ public final class SkyKey implements Serializable {
       return false;
     }
     SkyKey other = (SkyKey) obj;
-    if (hashCode() != other.hashCode()) {
-      return false;
-    }
     return functionName.equals(other.functionName) && argument.equals(other.argument);
   }
 

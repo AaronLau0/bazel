@@ -4,12 +4,6 @@ package(
 
 licenses(["notice"])  # Apache 2.0
 
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]),
-    visibility = ["//src:__pkg__"],
-)
-
 test_suite(
     name = "all_tests",
     tags = ["docgen"],

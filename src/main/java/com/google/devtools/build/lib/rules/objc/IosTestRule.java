@@ -21,6 +21,7 @@ import static com.google.devtools.build.lib.packages.BuildType.LABEL_LIST;
 import static com.google.devtools.build.lib.syntax.Type.BOOLEAN;
 import static com.google.devtools.build.lib.syntax.Type.STRING_LIST;
 
+import com.google.common.collect.ImmutableList;
 import com.google.devtools.build.lib.analysis.BaseRuleClasses;
 import com.google.devtools.build.lib.analysis.RuleDefinition;
 import com.google.devtools.build.lib.analysis.RuleDefinitionEnvironment;
@@ -28,6 +29,7 @@ import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.packages.Attribute.ComputedDefault;
 import com.google.devtools.build.lib.packages.Attribute.LateBoundLabel;
+import com.google.devtools.build.lib.packages.Attribute.LateBoundLabelList;
 import com.google.devtools.build.lib.packages.AttributeMap;
 import com.google.devtools.build.lib.packages.ImplicitOutputsFunction;
 import com.google.devtools.build.lib.packages.Rule;
@@ -38,6 +40,8 @@ import com.google.devtools.build.lib.rules.objc.ObjcRuleClasses.BundlingRule;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.util.FileType;
 
+import java.util.List;
+
 /**
  * Rule definition for {@code ios_test} rule in Bazel.
  */
@@ -45,6 +49,8 @@ public class IosTestRule implements RuleDefinition {
 
   @Override
   public RuleClass build(RuleClass.Builder builder, final RuleDefinitionEnvironment env) {
+    final ImmutableList<Label> gcov =
+        ImmutableList.of(env.getToolsLabel("//tools/objc:gcov"));
     final Label mcov = env.getToolsLabel("//tools/objc:mcov");
     return builder
         .requiresConfigurationFragments(
@@ -136,10 +142,20 @@ public class IosTestRule implements RuleDefinition {
         .add(
             attr(IosTest.MEMLEAKS_PLUGIN_ATTR, LABEL)
                 .value(env.getToolsLabel("//tools/objc:memleaks_plugin")))
-        .add(
-            attr(IosTest.OBJC_GCOV_ATTR, LABEL)
+        .override(
+            attr(IosTest.GCOV_ATTR, LABEL_LIST)
                 .cfg(HOST)
-                .value(env.getToolsLabel("//tools/objc:gcov")))
+                .value(
+                    new LateBoundLabelList<BuildConfiguration>(gcov) {
+                      @Override
+                      public List<Label> resolve(
+                          Rule rule, AttributeMap attributes, BuildConfiguration configuration) {
+                        if (!configuration.isCodeCoverageEnabled()) {
+                          return ImmutableList.of();
+                        }
+                        return gcov;
+                      }
+                    }))
         .add(
             attr(IosTest.MCOV_TOOL_ATTR, LABEL)
                 .cfg(HOST)

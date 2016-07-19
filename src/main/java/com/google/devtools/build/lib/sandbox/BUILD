@@ -6,7 +6,7 @@ java_library(
     name = "sandbox",
     srcs = glob(["*.java"]),
     data = [
-        "//src/main/tools:linux-sandbox",
+        "//src/main/tools:namespace-sandbox",
     ],
     deps = [
         "//src/main/java/com/google/devtools/build/lib:build-base",

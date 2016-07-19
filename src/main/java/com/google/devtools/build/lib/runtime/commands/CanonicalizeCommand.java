@@ -52,8 +52,7 @@ public final class CanonicalizeCommand implements BlazeCommand {
     public String forCommand;
 
     @Option(name = "invocation_policy",
-        defaultValue = "",
-        help = "Applies an invocation policy to the options to be canonicalized.")
+        defaultValue = "null")
     public String invocationPolicy;
   }
 

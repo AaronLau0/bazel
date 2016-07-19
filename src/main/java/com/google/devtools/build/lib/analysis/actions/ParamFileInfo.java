@@ -16,8 +16,10 @@ package com.google.devtools.build.lib.analysis.actions;
 
 import com.google.devtools.build.lib.actions.ParameterFile.ParameterFileType;
 import com.google.devtools.build.lib.util.Preconditions;
+
 import java.nio.charset.Charset;
 import java.util.Objects;
+
 import javax.annotation.concurrent.Immutable;
 
 /**
@@ -29,13 +31,11 @@ public final class ParamFileInfo {
   private final ParameterFileType fileType;
   private final Charset charset;
   private final String flag;
-  private final boolean always;
 
-  public ParamFileInfo(ParameterFileType fileType, Charset charset, String flag, boolean always) {
+  public ParamFileInfo(ParameterFileType fileType, Charset charset, String flag) {
     this.fileType = Preconditions.checkNotNull(fileType);
     this.charset = Preconditions.checkNotNull(charset);
     this.flag = Preconditions.checkNotNull(flag);
-    this.always = always;
   }
 
   /**
@@ -59,14 +59,9 @@ public final class ParamFileInfo {
     return flag;
   }
 
-  /** Returns true if a params file should always be used. */
-  public boolean always() {
-    return always;
-  }
-
   @Override
   public int hashCode() {
-    return Objects.hash(charset, flag, fileType, always);
+    return Objects.hash(charset, flag, fileType);
   }
 
   @Override
@@ -78,9 +73,7 @@ public final class ParamFileInfo {
       return false;
     }
     ParamFileInfo other = (ParamFileInfo) obj;
-    return fileType.equals(other.fileType)
-        && charset.equals(other.charset)
-        && flag.equals(other.flag)
-        && always == other.always;
+    return fileType.equals(other.fileType) && charset.equals(other.charset)
+        && flag.equals(other.flag);
   }
 }

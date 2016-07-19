@@ -40,9 +40,10 @@ import com.google.devtools.build.lib.runtime.BlazeModule;
 import com.google.devtools.build.lib.runtime.Command;
 import com.google.devtools.build.lib.runtime.CommandEnvironment;
 import com.google.devtools.build.lib.runtime.GotOptionsEvent;
-import com.google.devtools.build.lib.runtime.WorkspaceBuilder;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
 import com.google.devtools.build.lib.util.ResourceFileLoader;
+import com.google.devtools.build.skyframe.SkyFunction;
+import com.google.devtools.build.skyframe.SkyFunctionName;
 import com.google.devtools.common.options.Converters.AssignmentConverter;
 import com.google.devtools.common.options.Option;
 import com.google.devtools.common.options.OptionsBase;
@@ -152,7 +153,7 @@ public class BazelRulesModule extends BlazeModule {
 
   @Override
   public Iterable<Class<? extends OptionsBase>> getCommandOptions(Command command) {
-    return "build".equals(command.name())
+    return command.builds()
         ? ImmutableList.<Class<? extends OptionsBase>>of(BazelExecutionOptions.class)
         : ImmutableList.<Class<? extends OptionsBase>>of();
   }
@@ -176,7 +177,6 @@ public class BazelRulesModule extends BlazeModule {
 
   @Override
   public void initializeRuleClasses(ConfiguredRuleClassProvider.Builder builder) {
-    builder.setToolsRepository(BazelRuleClassProvider.TOOLS_REPOSITORY);
     BazelRuleClassProvider.setup(builder);
     try {
       // Load auto-configuration files, it is made outside of the rule class provider so that it
@@ -189,9 +189,8 @@ public class BazelRulesModule extends BlazeModule {
   }
 
   @Override
-  public void workspaceInit(BlazeDirectories directories, WorkspaceBuilder builder) {
-    builder.addSkyFunction(FdoSupportValue.SKYFUNCTION, new FdoSupportFunction());
-    builder.addPrecomputedValue(PrecomputedValue.injected(
+  public Iterable<PrecomputedValue.Injected> getPrecomputedSkyframeValues() {
+    return ImmutableList.of(PrecomputedValue.injected(
         GenQuery.QUERY_OUTPUT_FORMATTERS,
         new Supplier<ImmutableList<OutputFormatter>>() {
           @Override
@@ -199,5 +198,11 @@ public class BazelRulesModule extends BlazeModule {
             return env.getRuntime().getQueryOutputFormatters();
           }
         }));
+  }
+
+  @Override
+  public ImmutableMap<SkyFunctionName, SkyFunction> getSkyFunctions(BlazeDirectories directories) {
+    return ImmutableMap.<SkyFunctionName, SkyFunction>of(
+        FdoSupportValue.SKYFUNCTION, new FdoSupportFunction());
   }
 }

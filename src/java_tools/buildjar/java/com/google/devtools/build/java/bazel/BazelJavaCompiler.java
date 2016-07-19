@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
 import javax.lang.model.SourceVersion;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaCompiler;
@@ -54,15 +55,8 @@ public class BazelJavaCompiler {
 
   private static final String[] DEFAULT_JAVACOPTS;
   static {
-    List<String> defaultJavacopts = new ArrayList<>();
-    for (String javacopt : JavaBuilderConfig.defaultJavacOpts()) {
-      if (javacopt.startsWith("-Xep")) {
-        // ignore Error Prone-specific flags accepted by JavaBuilder
-        continue;
-      }
-      defaultJavacopts.add(javacopt);
-    }
-
+    List<String> defaultJavacopts = new ArrayList<>(JavaBuilderConfig.defaultJavacOpts());
+    
     // The bootclasspath must be specified both via an invocation option and
     // via fileManager.setLocation(PLATFORM_CLASS_PATH), to work around what
     // appears to be a bug in jdk[6,8] javac.
@@ -151,7 +145,7 @@ public class BazelJavaCompiler {
    */
   public static JavaCompiler newInstance() {
     try {
-      return newInstance(JAVA_COMPILER_CLASS.getConstructor().newInstance());
+      return newInstance(JAVA_COMPILER_CLASS.newInstance());
     } catch (Exception e) {
       throw new RuntimeException("Cannot get java compiler", e);
     }
@@ -177,7 +171,7 @@ public class BazelJavaCompiler {
    */
   public static JavaCompiler newInstance(ClassLoader cl) {
     try {
-      return newInstance(getJavaCompilerClass(cl).getConstructor().newInstance());
+      return newInstance(getJavaCompilerClass(cl).newInstance());
     } catch (Exception e) {
       throw new RuntimeException("Cannot get java compiler", e);
     }

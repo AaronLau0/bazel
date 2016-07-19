@@ -24,12 +24,10 @@ import com.google.devtools.build.lib.analysis.constraints.ConstraintSemantics;
 import com.google.devtools.build.lib.analysis.constraints.EnvironmentCollection;
 import com.google.devtools.build.lib.analysis.constraints.SupportedEnvironments;
 import com.google.devtools.build.lib.analysis.constraints.SupportedEnvironmentsProvider;
-import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.events.Location;
-import com.google.devtools.build.lib.packages.Target;
 import com.google.devtools.build.lib.packages.TargetUtils;
 import com.google.devtools.build.lib.rules.test.ExecutionInfoProvider;
 import com.google.devtools.build.lib.rules.test.InstrumentedFilesProvider;
@@ -182,12 +180,9 @@ public final class RuleConfiguredTargetBuilder {
         ConstraintSemantics.getSupportedEnvironments(ruleContext);
     if (supportedEnvironments != null) {
       EnvironmentCollection.Builder refinedEnvironments = new EnvironmentCollection.Builder();
-      Map<Label, Target> removedEnvironmentCulprits = new LinkedHashMap<>();
-      ConstraintSemantics.checkConstraints(ruleContext, supportedEnvironments, refinedEnvironments,
-          removedEnvironmentCulprits);
+      ConstraintSemantics.checkConstraints(ruleContext, supportedEnvironments, refinedEnvironments);
       add(SupportedEnvironmentsProvider.class,
-          new SupportedEnvironments(supportedEnvironments, refinedEnvironments.build(),
-              removedEnvironmentCulprits));
+          new SupportedEnvironments(supportedEnvironments, refinedEnvironments.build()));
     }
   }
 

@@ -116,18 +116,17 @@ public class BazelJavaRuleClasses {
     }
   }
 
-  static final Set<String> ALLOWED_RULES_IN_DEPS =
-      ImmutableSet.of(
-          "cc_binary", // NB: linkshared=1
-          "cc_library",
-          "genrule",
-          "genproto", // TODO(bazel-team): we should filter using providers instead (skylark rule).
-          "java_import",
-          "java_library",
-          "java_proto_library",
-          "proto_library",
-          "sh_binary",
-          "sh_library");
+  static final Set<String> ALLOWED_RULES_IN_DEPS = ImmutableSet.of(
+      "cc_binary",  // NB: linkshared=1
+      "cc_library",
+      "genrule",
+      "genproto",  // TODO(bazel-team): we should filter using providers instead (skylark rule).
+      "java_import",
+      "java_library",
+      // There is no Java protoc for Bazel--yet. This is here for the benefit of J2 protos.
+      "proto_library",
+      "sh_binary",
+      "sh_library");
 
   /**
    * Common attributes for Java rules.
@@ -291,7 +290,7 @@ public class BazelJavaRuleClasses {
           .add(attr("jvm_flags", STRING_LIST))
           /* <!-- #BLAZE_RULE($base_java_binary).ATTRIBUTE(use_testrunner) -->
           Use the
-          <code>com.google.testing.junit.runner.BazelTestRunner</code> class as the
+          <code>com.google.testing.junit.runner.GoogleTestRunner</code> class as the
           main entry point for a Java program.
 
           You can use this to override the default

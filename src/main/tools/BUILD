@@ -29,13 +29,13 @@ cc_binary(
 )
 
 cc_binary(
-    name = "linux-sandbox",
+    name = "namespace-sandbox",
     srcs = select({
-        "//src:darwin": ["dummy-sandbox.c"],
-        "//src:darwin_x86_64": ["dummy-sandbox.c"],
-        "//src:freebsd": ["dummy-sandbox.c"],
-        "//src:windows": ["dummy-sandbox.c"],
-        "//conditions:default": ["linux-sandbox.c"],
+        "//src:darwin": ["namespace-sandbox-dummy.c"],
+        "//src:darwin_x86_64": ["namespace-sandbox-dummy.c"],
+        "//src:freebsd": ["namespace-sandbox-dummy.c"],
+        "//src:windows": ["namespace-sandbox-dummy.c"],
+        "//conditions:default": ["namespace-sandbox.c"],
     }),
     copts = ["-std=c99"],
     linkopts = ["-lm"],

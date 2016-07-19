@@ -313,14 +313,14 @@ public class CachingAnalysisEnvironment implements AnalysisEnvironment {
   }
 
   @Override
-  public ImmutableList<Artifact> getBuildInfo(
-      RuleContext ruleContext, BuildInfoKey key, BuildConfiguration config) {
-    boolean stamp = AnalysisUtils.isStampingEnabled(ruleContext, config);
+  public ImmutableList<Artifact> getBuildInfo(RuleContext ruleContext, BuildInfoKey key) {
+    boolean stamp = AnalysisUtils.isStampingEnabled(ruleContext);
     BuildInfoCollectionValue collectionValue =
         (BuildInfoCollectionValue) skyframeEnv.getValue(BuildInfoCollectionValue.key(
-            new BuildInfoCollectionValue.BuildInfoKeyAndConfig(key, config)));
+            new BuildInfoCollectionValue.BuildInfoKeyAndConfig(
+                key, ruleContext.getConfiguration())));
     if (collectionValue == null) {
-      throw collectDebugInfoAndCrash(key, config);
+      throw collectDebugInfoAndCrash(key, ruleContext.getConfiguration());
     }
     BuildInfoCollection collection = collectionValue.getCollection();
    return stamp ? collection.getStampedBuildInfo() : collection.getRedactedBuildInfo();

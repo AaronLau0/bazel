@@ -392,7 +392,6 @@ public class SkyframeAwareActionTest extends TimestampBuilderTestCase {
         executor,
         null,
         false,
-        null,
         null);
 
     // Sanity check that our invalidation receiver is working correctly. We'll rely on it again.
@@ -420,7 +419,6 @@ public class SkyframeAwareActionTest extends TimestampBuilderTestCase {
         executor,
         null,
         false,
-        null,
         null);
 
     if (expectActionIs.dirtied()) {
@@ -791,16 +789,6 @@ public class SkyframeAwareActionTest extends TimestampBuilderTestCase {
         });
 
     builder.buildArtifacts(
-        reporter,
-        ImmutableSet.of(genFile2),
-        null,
-        null,
-        null,
-        null,
-        executor,
-        null,
-        false,
-        null,
-        null);
+        reporter, ImmutableSet.of(genFile2), null, null, null, null, executor, null, false, null);
   }
 }

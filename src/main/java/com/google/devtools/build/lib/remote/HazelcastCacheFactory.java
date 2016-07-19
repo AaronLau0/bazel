@@ -17,12 +17,10 @@ package com.google.devtools.build.lib.remote;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.client.config.ClientNetworkConfig;
-import com.hazelcast.client.config.XmlClientConfigBuilder;
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -35,14 +33,7 @@ public final class HazelcastCacheFactory {
 
   public static ConcurrentMap<String, byte[]> create(RemoteOptions options) {
     HazelcastInstance instance;
-    if (options.hazelcastClientConfig != null) {
-      try {
-        ClientConfig config = new XmlClientConfigBuilder(options.hazelcastClientConfig).build();
-        instance = HazelcastClient.newHazelcastClient(config);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    } else if (options.hazelcastNode != null) {
+    if (options.hazelcastNode != null) {
       // If --hazelcast_node is then create a client instance.
       ClientConfig config = new ClientConfig();
       ClientNetworkConfig net = config.getNetworkConfig();

@@ -62,7 +62,7 @@ import javax.annotation.Nullable;
  *
  * <p>This is intended only for use in alternative {@code MemoizingEvaluator} implementations.
  */
-public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph> {
+public abstract class InvalidatingNodeVisitor<TGraph extends ThinNodeQueryableGraph> {
 
   // Default thread count is equal to the number of cores to exploit
   // that level of hardware parallelism, since invalidation should be CPU-bound.
@@ -110,6 +110,7 @@ public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph>
             /*keepAliveTime=*/ 1,
             /*units=*/ TimeUnit.SECONDS,
             /*failFastOnException=*/ true,
+            /*failFastOnInterrupt=*/ true,
             "skyframe-invalidator",
             executorFactory,
             errorClassifier,
@@ -236,13 +237,13 @@ public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph>
   }
 
   /** A node-deleting implementation. */
-  static class DeletingNodeVisitor extends InvalidatingNodeVisitor<InMemoryGraph> {
+  static class DeletingNodeVisitor extends InvalidatingNodeVisitor<DirtiableGraph> {
 
     private final Set<SkyKey> visited = Sets.newConcurrentHashSet();
     private final boolean traverseGraph;
 
     DeletingNodeVisitor(
-        InMemoryGraph graph,
+        DirtiableGraph graph,
         EvaluationProgressReceiver invalidationReceiver,
         InvalidationState state,
         boolean traverseGraph,
@@ -338,7 +339,7 @@ public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph>
   }
 
   /** A node-dirtying implementation. */
-  static class DirtyingNodeVisitor extends InvalidatingNodeVisitor<InvalidatableGraph> {
+  static class DirtyingNodeVisitor extends InvalidatingNodeVisitor<ThinNodeQueryableGraph> {
 
     private final Set<SkyKey> changed =
         Collections.newSetFromMap(
@@ -351,7 +352,7 @@ public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph>
     private final boolean supportInterruptions;
 
     protected DirtyingNodeVisitor(
-        InvalidatableGraph graph,
+        ThinNodeQueryableGraph graph,
         EvaluationProgressReceiver invalidationReceiver,
         InvalidationState state,
         DirtyKeyTracker dirtyKeyTracker,
@@ -365,7 +366,7 @@ public abstract class InvalidatingNodeVisitor<TGraph extends InvalidatableGraph>
      * passing {@code false} for {@param supportInterruptions}.
      */
     protected DirtyingNodeVisitor(
-        InvalidatableGraph graph,
+        ThinNodeQueryableGraph graph,
         EvaluationProgressReceiver invalidationReceiver,
         InvalidationState state,
         DirtyKeyTracker dirtyKeyTracker,

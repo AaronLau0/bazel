@@ -15,7 +15,7 @@
 # This is a quick and dirty rule to make Bazel compile itself.  It
 # only supports Java.
 
-proto_filetype = [".proto"]
+proto_filetype = FileType([".proto"])
 
 def gensrcjar_impl(ctx):
   out = ctx.outputs.srcjar

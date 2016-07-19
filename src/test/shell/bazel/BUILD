@@ -1,14 +1,5 @@
 package(default_visibility = ["//visibility:private"])
 
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]) + [
-        "//src/test/shell/bazel/android:srcs",
-        "//src/test/shell/bazel/testdata:srcs",
-    ],
-    visibility = ["//src/test/shell:__pkg__"],
-)
-
 genrule(
     name = "langtools-copy",
     testonly = 1,
@@ -39,7 +30,6 @@ filegroup(
             "//src/tools/xcode/stdredirect:StdRedirect.dylib",
             "//src/tools/xcode/swiftstdlibtoolwrapper",
             "//src/tools/xcode/xcrunwrapper",
-            "//src/tools/xcode/xcodelocator:xcode-locator",
             "//third_party/iossim",
         ],
         "//conditions:default": [],
@@ -65,12 +55,12 @@ filegroup(
         "//src/java_tools/buildjar/java/com/google/devtools/build/buildjar/genclass:GenClass_deploy.jar",
         "//src/java_tools/junitrunner/java/com/google/testing/junit/runner:Runner_deploy.jar",
         "//src/java_tools/singlejar:SingleJar_deploy.jar",
-        "//src/main/tools:linux-sandbox",
+        "//src/main/tools:namespace-sandbox",
         "//src/main/tools:process-wrapper",
         "//src/test/shell:bashunit",
         "//third_party:srcs",
         "//third_party/ijar",
-        "//third_party/java/jdk/langtools:test-srcs",
+        "//third_party/java/jdk/langtools:srcs",
         "//tools:srcs",
     ],
     visibility = [
@@ -107,7 +97,6 @@ sh_test(
         "//:workspace-file",
         "//tools/build_defs/apple/test:srcs",
     ],
-    shard_count = 3,
 )
 
 sh_test(
@@ -283,9 +272,9 @@ sh_test(
 )
 
 sh_test(
-    name = "linux_sandbox_test",
+    name = "namespace_runner_test",
     size = "large",
-    srcs = ["linux-sandbox_test.sh"],
+    srcs = ["namespace-runner_test.sh"],
     data = [":test-deps"],
 )
 
@@ -318,6 +307,7 @@ sh_test(
         ":test-deps",
         "//src/test/java/com/google/devtools/build/lib:ExampleWorker_deploy.jar",
     ],
+    tags = ["manual"],
 )
 
 sh_test(
@@ -346,13 +336,6 @@ sh_test(
         ":test-deps",
         "//src/tools/remote_worker",
     ],
-)
-
-sh_test(
-    name = "client_test",
-    size = "medium",
-    srcs = ["client_test.sh"],
-    data = [":test-deps"],
 )
 
 test_suite(

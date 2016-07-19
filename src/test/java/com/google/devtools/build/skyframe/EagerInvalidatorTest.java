@@ -84,11 +84,8 @@ public class EagerInvalidatorTest {
   }
 
   @SuppressWarnings("unused") // Overridden by subclasses.
-  void invalidate(
-      InMemoryGraph graph, EvaluationProgressReceiver invalidationReceiver, SkyKey... keys)
-      throws InterruptedException {
-    throw new UnsupportedOperationException();
-  }
+  void invalidate(DirtiableGraph graph, EvaluationProgressReceiver invalidationReceiver,
+      SkyKey... keys) throws InterruptedException { throw new UnsupportedOperationException(); }
 
   boolean gcExpected() { throw new UnsupportedOperationException(); }
 
@@ -598,9 +595,8 @@ public class EagerInvalidatorTest {
   @RunWith(JUnit4.class)
   public static class DeletingInvalidatorTest extends EagerInvalidatorTest {
     @Override
-    protected void invalidate(
-        InMemoryGraph graph, EvaluationProgressReceiver invalidationReceiver, SkyKey... keys)
-        throws InterruptedException {
+    protected void invalidate(DirtiableGraph graph, EvaluationProgressReceiver invalidationReceiver,
+        SkyKey... keys) throws InterruptedException {
       Iterable<SkyKey> diff = ImmutableList.copyOf(keys);
       DeletingNodeVisitor deletingNodeVisitor =
           EagerInvalidator.createDeletingVisitorIfNeeded(
@@ -669,9 +665,8 @@ public class EagerInvalidatorTest {
   @RunWith(JUnit4.class)
   public static class DirtyingInvalidatorTest extends EagerInvalidatorTest {
     @Override
-    protected void invalidate(
-        InMemoryGraph graph, EvaluationProgressReceiver invalidationReceiver, SkyKey... keys)
-        throws InterruptedException {
+    protected void invalidate(DirtiableGraph graph, EvaluationProgressReceiver invalidationReceiver,
+        SkyKey... keys) throws InterruptedException {
       Iterable<SkyKey> diff = ImmutableList.copyOf(keys);
       DirtyingNodeVisitor dirtyingNodeVisitor =
           EagerInvalidator.createInvalidatingVisitorIfNeeded(

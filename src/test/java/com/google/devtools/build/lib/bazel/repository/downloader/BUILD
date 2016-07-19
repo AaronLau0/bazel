@@ -1,9 +1,3 @@
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]),
-    visibility = ["//src/test/java/com/google/devtools/build/lib/bazel/repository:__pkg__"],
-)
-
 java_test(
     name = "DownloaderTests",
     srcs = glob(["*.java"]),

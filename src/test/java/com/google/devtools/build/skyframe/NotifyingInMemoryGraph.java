@@ -15,30 +15,24 @@ package com.google.devtools.build.skyframe;
 
 import java.util.Map;
 
-/** {@link NotifyingHelper} that additionally implements the {@link InMemoryGraph} interface. */
-class NotifyingInMemoryGraph extends NotifyingHelper.NotifyingProcessableGraph
-    implements InMemoryGraph {
-  NotifyingInMemoryGraph(InMemoryGraph delegate, NotifyingHelper.Listener graphListener) {
+/** {@link NotifyingGraph} that additionally implements the {@link InMemoryGraph} interface. */
+class NotifyingInMemoryGraph extends NotifyingGraph<InMemoryGraph> implements InMemoryGraph {
+  NotifyingInMemoryGraph(InMemoryGraph delegate, Listener graphListener) {
     super(delegate, graphListener);
   }
 
   @Override
-  public Map<SkyKey, NodeEntry> getBatch(Iterable<SkyKey> keys) {
-    return getBatchWithFieldHints(keys, NodeEntryField.ALL_FIELDS);
-  }
-
-  @Override
   public Map<SkyKey, SkyValue> getValues() {
-    return ((InMemoryGraph) delegate).getValues();
+    return delegate.getValues();
   }
 
   @Override
   public Map<SkyKey, SkyValue> getDoneValues() {
-    return ((InMemoryGraph) delegate).getDoneValues();
+    return delegate.getDoneValues();
   }
 
   @Override
   public Map<SkyKey, NodeEntry> getAllValues() {
-    return ((InMemoryGraph) delegate).getAllValues();
+    return delegate.getAllValues();
   }
 }

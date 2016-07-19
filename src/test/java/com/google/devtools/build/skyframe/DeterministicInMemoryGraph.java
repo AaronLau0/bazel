@@ -16,33 +16,32 @@ package com.google.devtools.build.skyframe;
 import java.util.Map;
 
 /**
- * {@link DeterministicHelper.DeterministicProcessableGraph} that implements the {@link
- * InMemoryGraph} interface. Sadly, cannot be a {@link NotifyingInMemoryGraph} due to Java's
- * forbidding multiple inheritance.
+ * {@link DeterministicGraph} that implements the {@link InMemoryGraph} interface. Sadly, cannot be
+ * a {@link NotifyingInMemoryGraph} due to Java's forbidding multiple inheritance.
  */
-class DeterministicInMemoryGraph extends DeterministicHelper.DeterministicProcessableGraph
+class DeterministicInMemoryGraph extends DeterministicGraph<InMemoryGraph>
     implements InMemoryGraph {
-  DeterministicInMemoryGraph(InMemoryGraph delegate, NotifyingHelper.Listener graphListener) {
+
+  DeterministicInMemoryGraph(InMemoryGraph delegate, Listener graphListener) {
     super(delegate, graphListener);
   }
 
-  @Override
-  public Map<SkyKey, NodeEntry> getBatch(Iterable<SkyKey> keys) {
-    return getBatchWithFieldHints(keys, NodeEntryField.ALL_FIELDS);
+  DeterministicInMemoryGraph(InMemoryGraph delegate) {
+    super(delegate);
   }
 
   @Override
   public Map<SkyKey, SkyValue> getValues() {
-    return ((InMemoryGraph) delegate).getValues();
+    return delegate.getValues();
   }
 
   @Override
   public Map<SkyKey, SkyValue> getDoneValues() {
-    return ((InMemoryGraph) delegate).getDoneValues();
+    return delegate.getDoneValues();
   }
 
   @Override
   public Map<SkyKey, NodeEntry> getAllValues() {
-    return ((InMemoryGraph) delegate).getAllValues();
+    return delegate.getAllValues();
   }
 }

@@ -1,9 +1,3 @@
-filegroup(
-    name = "srcs",
-    srcs = glob(["**"]),
-    visibility = ["//src:__pkg__"],
-)
-
 java_test(
     name = "options_test",
     srcs = glob(["*.java"]),

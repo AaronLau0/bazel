@@ -16,7 +16,6 @@ package com.google.devtools.build.lib.runtime;
 import com.google.devtools.build.lib.actions.Action;
 import com.google.devtools.build.lib.actions.ActionCompletionEvent;
 import com.google.devtools.build.lib.actions.ActionStartedEvent;
-import com.google.devtools.build.lib.actions.ActionStatusMessage;
 import com.google.devtools.build.lib.analysis.AnalysisPhaseCompleteEvent;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.buildtool.ExecutionProgressReceiver;
@@ -48,12 +47,11 @@ import java.util.TreeSet;
  */
 class ExperimentalStateTracker {
 
+  static final int SAMPLE_SIZE = 3;
   static final long SHOW_TIME_THRESHOLD_SECONDS = 3;
   static final String ELLIPSIS = "...";
 
   static final int NANOS_PER_SECOND = 1000000000;
-
-  private int sampleSize = 3;
 
   private String status;
   private String additionalMessage;
@@ -69,7 +67,7 @@ class ExperimentalStateTracker {
   private final Deque<String> runningActions;
   private final Map<String, Action> actions;
   private final Map<String, Long> actionNanoStartTimes;
-  private final Map<String, String> actionStrategy;
+
 
   // For each test, the list of actions (again identified by the path of the
   // primary output) currently running for that test (identified by its label),
@@ -91,7 +89,6 @@ class ExperimentalStateTracker {
     this.runningActions = new ArrayDeque<>();
     this.actions = new TreeMap<>();
     this.actionNanoStartTimes = new TreeMap<>();
-    this.actionStrategy = new TreeMap<>();
     this.testActions = new TreeMap<>();
     this.ok = true;
     this.clock = clock;
@@ -100,17 +97,6 @@ class ExperimentalStateTracker {
 
   ExperimentalStateTracker(Clock clock) {
     this(clock, 0);
-  }
-
-  /**
-   * Set the maximal number of actions shown in the progress bar.
-   */
-  void setSampleSize(int sampleSize) {
-    if (sampleSize >= 1) {
-      this.sampleSize = sampleSize;
-    } else {
-      this.sampleSize = 1;
-    }
   }
 
   void buildStarted(BuildStartingEvent event) {
@@ -133,48 +119,24 @@ class ExperimentalStateTracker {
     }
   }
 
-  /**
-   * Make the state tracker aware of the fact that the analyis has finished. Return a summary of the
-   * work done in the analysis phase.
-   */
-  synchronized String analysisComplete(AnalysisPhaseCompleteEvent event) {
-    String workDone = "Analysed " + additionalMessage;
-    if (packageProgressReceiver != null) {
-      Pair<String, String> progress = packageProgressReceiver.progressState();
-      workDone += " (" + progress.getFirst() + ")";
-    }
-    workDone += ".";
+  void analysisComplete(AnalysisPhaseCompleteEvent event) {
     status = null;
     packageProgressReceiver = null;
-    return workDone;
   }
 
   void progressReceiverAvailable(ExecutionProgressReceiverAvailableEvent event) {
     executionProgressReceiver = event.getExecutionProgressReceiver();
   }
 
-  void buildComplete(BuildCompleteEvent event, String additionalInfo) {
+  void buildComplete(BuildCompleteEvent event) {
     if (event.getResult().getSuccess()) {
       status = "INFO";
-      if (failedTests == 0) {
-        additionalMessage =
-            additionalInfo + "Build completed successfully, "
-            + actionsCompleted + " total action" + (actionsCompleted == 1 ? "" : "s");
-      } else {
-        additionalMessage =
-            additionalInfo + "Build completed, "
-            + failedTests + " test" + (failedTests == 1 ? "" : "s") + " FAILED, "
-            + actionsCompleted + " total action" + (actionsCompleted == 1 ? "" : "s");
-      }
+      additionalMessage = "Build completed successfully, " + actionsCompleted + " total actions";
     } else {
       ok = false;
       status = "FAILED";
-      additionalMessage = additionalInfo + "Build did NOT complete successfully";
+      additionalMessage = "Build did NOT complete successfully";
     }
-  }
-
-  void buildComplete(BuildCompleteEvent event) {
-    buildComplete(event, "");
   }
 
   synchronized void actionStarted(ActionStartedEvent event) {
@@ -195,16 +157,6 @@ class ExperimentalStateTracker {
     }
   }
 
-  void actionStatusMessage(ActionStatusMessage event) {
-    String strategy = event.getStrategy();
-    if (strategy != null) {
-      String name = event.getActionMetadata().getPrimaryOutput().getPath().getPathString();
-      synchronized (this) {
-        actionStrategy.put(name, strategy);
-      }
-    }
-  }
-
   synchronized void actionCompletion(ActionCompletionEvent event) {
     actionsCompleted++;
     Action action = event.getAction();
@@ -212,7 +164,6 @@ class ExperimentalStateTracker {
     runningActions.remove(name);
     actions.remove(name);
     actionNanoStartTimes.remove(name);
-    actionStrategy.remove(name);
 
     if (action.getOwner() != null) {
       Label owner = action.getOwner().getLabel();
@@ -332,15 +283,8 @@ class ExperimentalStateTracker {
     String postfix = "";
     long nanoRuntime = nanoTime - actionNanoStartTimes.get(name);
     long runtimeSeconds = nanoRuntime / NANOS_PER_SECOND;
-    String strategy = actionStrategy.get(name);
-    // To keep the UI appearance more stable, always show the elapsed
-    // time if we also show a strategy (otherwise the strategy will jump in
-    // the progress bar).
-    if (strategy != null || runtimeSeconds > SHOW_TIME_THRESHOLD_SECONDS) {
-      postfix = "; " + runtimeSeconds + "s";
-    }
-    if (strategy != null) {
-      postfix += " " + strategy;
+    if (runtimeSeconds > SHOW_TIME_THRESHOLD_SECONDS) {
+      postfix = " " + runtimeSeconds + "s";
     }
 
     String message = action.getProgressMessage();
@@ -404,11 +348,10 @@ class ExperimentalStateTracker {
         continue;
       }
       count++;
-      if (count > sampleSize) {
-        totalCount--;
+      if (count > SAMPLE_SIZE) {
         break;
       }
-      int width = (count >= sampleSize && count < actionCount) ? targetWidth - 8 : targetWidth - 4;
+      int width = (count >= SAMPLE_SIZE && count < actionCount) ? targetWidth - 8 : targetWidth - 4;
       terminalWriter.newline().append("    " + describeAction(action, nanoTime, width, toSkip));
     }
     if (totalCount < actionCount) {
@@ -434,6 +377,7 @@ class ExperimentalStateTracker {
       failedTests++;
     }
   }
+
 
   /***
    * Predicate indicating whether the contents of the progress bar can change, if the
@@ -496,7 +440,7 @@ class ExperimentalStateTracker {
       if (packageProgressReceiver != null) {
         Pair<String, String> progress = packageProgressReceiver.progressState();
         terminalWriter.append(" (" + progress.getFirst() + ")");
-        if (progress.getSecond().length() > 0 && !shortVersion) {
+        if (progress.getSecond().length() > 0) {
           terminalWriter.newline().append("    " + progress.getSecond());
         }
       }
@@ -523,14 +467,14 @@ class ExperimentalStateTracker {
       terminalWriter.append(";");
     }
     if (runningActions.size() == 0) {
-      terminalWriter.normal().append(" no action running");
+      terminalWriter.normal().append(" no action");
       maybeShowRecentTest(terminalWriter, shortVersion, targetWidth - terminalWriter.getPosition());
     } else if (runningActions.size() == 1) {
       if (maybeShowRecentTest(null, shortVersion, targetWidth - terminalWriter.getPosition())) {
         // As we will break lines anyway, also show the number of running actions, to keep
         // things stay roughly in the same place (also compensating for the missing plural-s
         // in the word action).
-        terminalWriter.normal().append("  1 action running");
+        terminalWriter.normal().append("  1 action");
         maybeShowRecentTest(
             terminalWriter, shortVersion, targetWidth - terminalWriter.getPosition());
         String statusMessage =
@@ -553,10 +497,10 @@ class ExperimentalStateTracker {
                 clock.nanoTime(),
                 targetWidth - terminalWriter.getPosition(),
                 null);
-        statusMessage += " ... (" + runningActions.size() + " actions running)";
+        statusMessage += " ... (" + runningActions.size() + " actions)";
         terminalWriter.normal().append(" " + statusMessage);
       } else {
-        String statusMessage = "" + runningActions.size() + " actions running";
+        String statusMessage = "" + runningActions.size() + " actions";
         terminalWriter.normal().append(" " + statusMessage);
         maybeShowRecentTest(
             terminalWriter, shortVersion, targetWidth - terminalWriter.getPosition());

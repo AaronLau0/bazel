@@ -32,9 +32,4 @@ public interface RuleDefinitionEnvironment {
    * using {@link RuleDefinitionEnvironment#getLabel}
    */
   Label getToolsLabel(String labelValue);
-
-  /**
-   * Returns the tools repository prefix.
-   */
-  String getToolsRepository();
 }

@@ -368,20 +368,16 @@ public class AndroidCommon {
 
   private void compileResources(
       JavaSemantics javaSemantics,
-      ResourceApk resourceApk,
       Artifact resourcesJar,
       JavaCompilationArtifacts.Builder artifactsBuilder,
       JavaTargetAttributes.Builder attributes,
       NestedSetBuilder<Artifact> filesBuilder,
-      ImmutableList.Builder<Artifact> jarsProducedForRuntime,
-      boolean useRClassGenerator) throws InterruptedException {
-    compileResourceJar(javaSemantics, resourceApk, resourcesJar, useRClassGenerator);
+      ImmutableList.Builder<Artifact> jarsProducedForRuntime) throws InterruptedException {
+    compileResourceJar(javaSemantics, resourcesJar);
     // Add the compiled resource jar to the classpath of the main compilation.
-    attributes.addDirectJars(NestedSetBuilder.create(Order.STABLE_ORDER, resourceClassJar));
+    attributes.addDirectJars(ImmutableList.of(resourceClassJar));
+    attributes.addDirectCompileTimeClassPathEntries(ImmutableList.of(resourceClassJar));
     // Add the compiled resource jar to the classpath of consuming targets.
-    // We don't actually use the ijar. That is almost the same as the resource class jar
-    // except for <clinit>, but it takes time to build and waiting for that to build would
-    // just delay building the rest of the library.
     artifactsBuilder.addCompileTimeJar(resourceClassJar);
     // Combined resource constants needs to come even before our own classes that may contain
     // local resource constants.
@@ -392,9 +388,7 @@ public class AndroidCommon {
     filesBuilder.add(resourceClassJar);
   }
 
-  private void compileResourceJar(
-      JavaSemantics javaSemantics, ResourceApk resourceApk, Artifact resourcesJar,
-      boolean useRClassGenerator)
+  private void compileResourceJar(JavaSemantics javaSemantics, Artifact resourcesJar)
       throws InterruptedException {
     resourceSourceJar = ruleContext.getImplicitOutputArtifact(
         AndroidRuleClasses.ANDROID_RESOURCES_SOURCE_JAR);
@@ -406,23 +400,15 @@ public class AndroidCommon {
         .addSourceJar(resourcesJar);
     JavaCompilationHelper javacHelper = new JavaCompilationHelper(
         ruleContext, javaSemantics, getJavacOpts(), javacAttributes);
-    if (useRClassGenerator) {
-      RClassGeneratorActionBuilder actionBuilder =
-          new RClassGeneratorActionBuilder(ruleContext)
-              .withPrimary(resourceApk.getPrimaryResource())
-              .withDependencies(resourceApk.getResourceDependencies())
-              .setClassJarOut(resourceClassJar);
-      actionBuilder.build();
-    } else {
-      Artifact outputDepsProto =
-          javacHelper.createOutputDepsProtoArtifact(resourceClassJar, javaArtifactsBuilder);
-      javacHelper.createCompileActionWithInstrumentation(
-          resourceClassJar,
-          null /* manifestProtoOutput */,
-          null /* genSourceJar */,
-          outputDepsProto,
-          javaArtifactsBuilder);
-    }
+
+    Artifact outputDepsProto =
+        javacHelper.createOutputDepsProtoArtifact(resourceClassJar, javaArtifactsBuilder);
+    javacHelper.createCompileActionWithInstrumentation(
+        resourceClassJar,
+        null /* manifestProtoOutput */,
+        null /* genSourceJar */,
+        outputDepsProto,
+        javaArtifactsBuilder);
     javacHelper.createSourceJarAction(resourceSourceJar, null);
     resourceIJar = javacHelper.createCompileTimeJarAction(resourceClassJar, javaArtifactsBuilder);
   }
@@ -487,19 +473,15 @@ public class AndroidCommon {
   public JavaTargetAttributes init(
       JavaSemantics javaSemantics, AndroidSemantics androidSemantics,
       ResourceApk resourceApk,
-      boolean addCoverageSupport, boolean collectJavaCompilationArgs, boolean isBinary)
-      throws InterruptedException {
+      boolean addCoverageSupport, boolean collectJavaCompilationArgs) throws InterruptedException {
 
     classJar = ruleContext.getImplicitOutputArtifact(AndroidRuleClasses.ANDROID_LIBRARY_CLASS_JAR);
     idlHelper = new AndroidIdlHelper(ruleContext, classJar);
 
-    JavaTargetAttributes.Builder attributes =
-        javaCommon
-            .initCommon(
-                idlHelper.getIdlGeneratedJavaSources(),
-                androidSemantics.getJavacArguments(ruleContext))
-            .setBootClassPath(
-                ImmutableList.of(AndroidSdkProvider.fromRuleContext(ruleContext).getAndroidJar()));
+    JavaTargetAttributes.Builder attributes = javaCommon
+        .initCommon(idlHelper.getIdlGeneratedJavaSources(), androidSemantics.getJavacArguments())
+        .setBootClassPath(ImmutableList.of(
+            AndroidSdkProvider.fromRuleContext(ruleContext).getAndroidJar()));
 
     JavaCompilationArtifacts.Builder artifactsBuilder = new JavaCompilationArtifacts.Builder();
     ImmutableList.Builder<Artifact> jarsProducedForRuntime = ImmutableList.builder();
@@ -508,14 +490,8 @@ public class AndroidCommon {
     Artifact resourcesJar = resourceApk.getResourceJavaSrcJar();
     if (resourcesJar != null) {
       filesBuilder.add(resourcesJar);
-      // Use a fast-path R class generator for android_binary with local resources, where there is
-      // a bottleneck. For legacy resources, the srcjar and R class compiler don't match up
-      // (the legacy srcjar requires the createJarJar step below).
-      boolean useRClassGenerator =
-          getAndroidConfig(ruleContext).useRClassGenerator()
-          && isBinary && !resourceApk.isLegacy();
-      compileResources(javaSemantics, resourceApk, resourcesJar, artifactsBuilder, attributes,
-          filesBuilder, jarsProducedForRuntime, useRClassGenerator);
+      compileResources(javaSemantics, resourcesJar, artifactsBuilder, attributes, filesBuilder,
+          jarsProducedForRuntime);
       if (resourceApk.isLegacy()) {
         // Repackages the R.java for each dependency package and places the resultant jars before
         // the dependency libraries to ensure that the generated resource ids are correct.

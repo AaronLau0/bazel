@@ -26,11 +26,8 @@ import java.io.InputStream;
  * Bazel implementation of {@link MockCcSupport}
  */
 public final class BazelMockCcSupport extends MockCcSupport {
+
   public static final BazelMockCcSupport INSTANCE = new BazelMockCcSupport();
-
-  private static final String MOCK_CROSSTOOL_PATH =
-      "com/google/devtools/build/lib/analysis/mock/MOCK_CROSSTOOL";
-
   /** Filter to remove implicit dependencies of C/C++ rules. */
   private static final Predicate<String> CC_LABEL_NAME_FILTER =
       new Predicate<String>() {
@@ -110,17 +107,11 @@ public final class BazelMockCcSupport extends MockCcSupport {
         "    linker_files = ':empty',",
         "    module_map = 'crosstool.cppmap', supports_header_parsing = 1,",
         "    objcopy_files = ':empty', static_runtime_libs = [':empty'], strip_files = ':empty',",
-        ")",
-        "cc_toolchain(name = 'cc-compiler-x64_windows', all_files = ':empty', ",
-        "    compiler_files = ':empty',",
-        "    cpu = 'local', dwp_files = ':empty', dynamic_runtime_libs = [':empty'], ",
-        "    linker_files = ':empty',",
-        "    module_map = 'crosstool.cppmap', supports_header_parsing = 1,",
-        "    objcopy_files = ':empty', static_runtime_libs = [':empty'], strip_files = ':empty',",
         ")");
 
     config.create(
-        "/bazel_tools_workspace/tools/cpp/CROSSTOOL", readFromResources(MOCK_CROSSTOOL_PATH));
+        "/bazel_tools_workspace/tools/cpp/CROSSTOOL",
+        readFromResources("com/google/devtools/build/lib/MOCK_CROSSTOOL"));
     config.create(
         "/bazel_tools_workspace/tools/objc/BUILD",
         "xcode_config(name = 'host_xcodes')");
@@ -133,7 +124,7 @@ public final class BazelMockCcSupport extends MockCcSupport {
 
   @Override
   protected String readCrosstoolFile() throws IOException {
-    return readFromResources(MOCK_CROSSTOOL_PATH);
+    return readFromResources("com/google/devtools/build/lib/MOCK_CROSSTOOL");
   }
 
   public static String readFromResources(String filename) throws IOException {

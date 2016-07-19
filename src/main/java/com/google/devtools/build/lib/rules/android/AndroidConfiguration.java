@@ -98,16 +98,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
   }
 
   /**
-   * Converter for {@link AndroidManifestMerger}
-   */
-  public static final class AndroidManifestMergerConverter
-      extends EnumConverter<AndroidManifestMerger> {
-    public AndroidManifestMergerConverter() {
-      super(AndroidManifestMerger.class, "android manifest merger");
-    }
-  }
-
-  /**
    * Value used to avoid multiple configurations from conflicting.
    *
    * <p>This is set to {@code ANDROID} in Android configurations and to {@code MAIN} otherwise. This
@@ -146,30 +136,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
 
     private IncrementalDexing(AndroidBinaryType... binaryTypes) {
       this.binaryTypes = ImmutableSet.copyOf(binaryTypes);
-    }
-  }
-
-  /** Types of android manifest mergers. */
-  public enum AndroidManifestMerger {
-    LEGACY,
-    ANDROID;
-
-    public static List<String> getAttributeValues() {
-      return ImmutableList.of(LEGACY.name().toLowerCase(), ANDROID.name().toLowerCase(),
-          getRuleAttributeDefault());
-    }
-
-    public static String getRuleAttributeDefault() {
-      return "auto";
-    }
-
-    public static AndroidManifestMerger fromString(String value) {
-      for (AndroidManifestMerger merger : AndroidManifestMerger.values()) {
-        if (merger.name().equalsIgnoreCase(value)) {
-          return merger;
-        }
-      }
-      return null;
     }
   }
 
@@ -324,30 +290,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
         help = "Enables resource shrinking for android_binary APKs that use proguard.")
     public boolean useAndroidResourceShrinking;
 
-    // TODO(jimbrooks): Remove this flag after it is removed from the global blazerc.
-    @Option(name = "experimental_use_proguard_previous_obfuscation_map",
-        defaultValue = "false",
-        category = "undocumented",
-        help = "Does nothing (obsolete).")
-    public boolean useProguardPreviousObfuscationMap;
-
-    @Option(name = "android_manifest_merger",
-        defaultValue = "legacy",
-        category = "semantics",
-        converter = AndroidManifestMergerConverter.class,
-        help = "Selects the manifest merger to use for android_binary rules. Flag to help the"
-            + "transition to the Android manifest merger from the legacy merger.")
-    public AndroidManifestMerger manifestMerger;
-
-    // Do not use on the command line.
-    // The idea is that once this option works, we'll flip the default value in a config file, then
-    // once it is proven that it works, remove it from Bazel and said config file.
-    @Option(name = "experimental_use_rclass_generator",
-        defaultValue = "false",
-        category = "undocumented",
-        help = "Use the specialized R class generator to build the final app and lib R classes.")
-    public boolean useRClassGenerator;
-
     @Override
     public void addAllLabels(Multimap<String, Label> labelMap) {
       if (androidCrosstoolTop != null) {
@@ -408,7 +350,7 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
   private final boolean legacyNativeSupport;
   private final String cpu;
   private final boolean incrementalNativeLibs;
-  private final boolean usesAndroidCrosstool;
+  private final boolean fatApk;
   private final ConfigurationDistinguisher configurationDistinguisher;
   private final boolean useJackForDexing;
   private final boolean jackSanityChecks;
@@ -417,8 +359,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
   private final ImmutableList<String> targetDexoptsThatPreventIncrementalDexing;
   private final boolean allowAndroidLibraryDepsWithoutSrcs;
   private final boolean useAndroidResourceShrinking;
-  private final boolean useRClassGenerator;
-  private final AndroidManifestMerger manifestMerger;
 
   AndroidConfiguration(Options options, Label androidSdk) {
     this.sdk = androidSdk;
@@ -426,7 +366,7 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
     this.strictDeps = options.strictDeps;
     this.legacyNativeSupport = options.legacyNativeSupport;
     this.cpu = options.cpu;
-    this.usesAndroidCrosstool = (options.androidCrosstoolTop != null);
+    this.fatApk = !options.fatApkCpus.isEmpty();
     this.configurationDistinguisher = options.configurationDistinguisher;
     this.useJackForDexing = options.useJackForDexing;
     this.jackSanityChecks = options.jackSanityChecks;
@@ -441,8 +381,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
         ImmutableList.copyOf(options.nonIncrementalPerTargetDexopts);
     this.allowAndroidLibraryDepsWithoutSrcs = options.allowAndroidLibraryDepsWithoutSrcs;
     this.useAndroidResourceShrinking = options.useAndroidResourceShrinking;
-    this.useRClassGenerator = options.useRClassGenerator;
-    this.manifestMerger = options.manifestMerger;
   }
 
   public String getCpu() {
@@ -461,8 +399,8 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
     return strictDeps;
   }
 
-  public boolean usesAndroidCrosstool() {
-    return usesAndroidCrosstool;
+  public boolean isFatApk() {
+    return fatApk;
   }
 
   /**
@@ -513,14 +451,6 @@ public class AndroidConfiguration extends BuildConfiguration.Fragment {
 
   public boolean useAndroidResourceShrinking() {
     return useAndroidResourceShrinking;
-  }
-
-  public boolean useRClassGenerator() {
-    return useRClassGenerator;
-  }
-
-  public AndroidManifestMerger getManifestMerger() {
-    return manifestMerger;
   }
 
   @Override

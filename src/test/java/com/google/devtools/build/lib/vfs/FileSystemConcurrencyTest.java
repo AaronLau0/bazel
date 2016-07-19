@@ -36,7 +36,7 @@ public class FileSystemConcurrencyTest {
 
   @Before
   public final void initializeFileSystem() throws Exception  {
-    FileSystem testFS = FileSystems.getNativeFileSystem();
+    FileSystem testFS = FileSystems.initDefaultAsNative();
 
     // Resolve symbolic links in the temp dir:
     workingDir = testFS.getPath(new File(TestUtils.tmpDir()).getCanonicalPath());

@@ -32,12 +32,14 @@ public class ObjcProtoLibrary implements RuleConfiguredTargetFactory {
   @Override
   public ConfiguredTarget create(final RuleContext ruleContext)
       throws InterruptedException, RuleErrorException {
+    ObjcCommon.Builder commonBuilder = new ObjcCommon.Builder(ruleContext);
     XcodeProvider.Builder xcodeProviderBuilder = new XcodeProvider.Builder();
     NestedSetBuilder<Artifact> filesToBuild = NestedSetBuilder.stableOrder();
 
     ProtoSupport protoSupport =
         new ProtoSupport(ruleContext, TargetType.PROTO_TARGET)
             .validate()
+            .addCommonOptions(commonBuilder)
             .addXcodeProviderOptions(xcodeProviderBuilder)
             .addFilesToBuild(filesToBuild)
             .registerActions();
@@ -46,7 +48,7 @@ public class ObjcProtoLibrary implements RuleConfiguredTargetFactory {
       return null;
     }
 
-    ObjcCommon common = protoSupport.getCommon();
+    ObjcCommon common = commonBuilder.build();
 
     filesToBuild.addAll(common.getCompiledArchive().asSet());
 
@@ -62,16 +64,12 @@ public class ObjcProtoLibrary implements RuleConfiguredTargetFactory {
     boolean experimentalAutoUnion =
         ObjcRuleClasses.objcConfiguration(ruleContext).experimentalAutoTopLevelUnionObjCProtos();
 
-    CompilationSupport compilationSupport = new CompilationSupport(ruleContext);
-
     // If the experimental flag is not set, or if it's set and doesn't use the protobuf library,
     // register the compilation actions, as the output needs to be linked in the final binary.
     if (!experimentalAutoUnion || !usesProtobufLibrary) {
-      compilationSupport.registerCompileAndArchiveActions(common);
-    } else {
-      // Even though there is nothing to compile, still generate a module map based on this target
-      // headers.
-      compilationSupport.registerGenerateModuleMapAction(common.getCompilationArtifacts());
+      new CompilationSupport(ruleContext)
+          .registerCompileAndArchiveActions(common)
+          .registerFullyLinkAction(common.getObjcProvider());
     }
 
     return ObjcRuleClasses.ruleConfiguredTarget(ruleContext, filesToBuild.build())

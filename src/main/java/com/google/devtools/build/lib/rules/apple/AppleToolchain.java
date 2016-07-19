@@ -33,6 +33,7 @@ import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.RuleClass;
 import com.google.devtools.build.lib.packages.RuleClass.Builder;
 import com.google.devtools.build.lib.packages.RuleClass.Builder.RuleClassType;
+import com.google.devtools.build.lib.rules.apple.Platform.PlatformType;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkCallable;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkModule;
 import com.google.devtools.build.xcode.xcodegen.proto.XcodeGenProtos.XcodeprojBuildSetting;
@@ -81,11 +82,12 @@ public class AppleToolchain {
           .build();
 
   /**
-   * Returns the platform plist name (for example, iPhoneSimulator) for the single-arch-context
-   * apple platform specified in the configuration.
+   * Returns the platform plist name (for example, iPhoneSimulator) for the platform corresponding
+   * to the value of {@code --ios_cpu} in the given configuration.
    */
+  // TODO(bazel-team): Support non-ios platforms.
   public static String getPlatformPlistName(AppleConfiguration configuration) {
-    return configuration.getSingleArchPlatform().getNameInPlist();
+    return configuration.getPlatform(PlatformType.IOS).getNameInPlist();
   }
 
   /**
@@ -139,10 +141,6 @@ public class AppleToolchain {
         break;
       case MACOS_X:
         relativePath = DEVELOPER_FRAMEWORK_PATH;
-        break;
-      case WATCHOS_DEVICE:
-      case WATCHOS_SIMULATOR:
-        relativePath = SYSTEM_FRAMEWORK_PATH;
         break;
       default:
         throw new IllegalArgumentException("Unhandled platform " + targetPlatform);

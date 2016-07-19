@@ -39,6 +39,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 class JUnit4TestXmlListener extends RunListener  {
+
   private final Supplier<TestSuiteModel> modelSupplier;
   private final CancellableRequestFactory requestFactory;
   private final SignalHandlers signalHandlers;

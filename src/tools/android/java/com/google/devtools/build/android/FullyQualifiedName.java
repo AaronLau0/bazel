@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,8 +99,9 @@ public class FullyQualifiedName implements DataKey, Comparable<FullyQualifiedNam
       List<String> unHandledDensityQualifiers = new ArrayList<>();
       List<String> unHandledUIModeQualifiers = new ArrayList<>();
       List<String> handledQualifiers = new ArrayList<>();
-      // TODO(corysmith): Remove when FolderConfiguration is updated to handle BCP prefixes.
-      // TODO(corysmith): Add back in handling for anydpi
+      // TODO(corysmith): Remove when FolderConfiguration is updated to handle anydpi and
+      // BCP prefixes.
+      // The language/region qualifiers and anydpi cannot be currently handled.
       while (rawQualifiers.hasNext()) {
         String qualifier = rawQualifiers.next();
         if (qualifier.startsWith(BCP_PREFIX)) {
@@ -121,6 +121,8 @@ public class FullyQualifiedName implements DataKey, Comparable<FullyQualifiedNam
           unHandledLanguageRegionQualifiers.add("b+sr+Latn");
           // Consume the next value, as it's been replaced.
           rawQualifiers.next();
+        } else if (qualifier.equals("anydpi")) {
+          unHandledDensityQualifiers.add(qualifier);
         } else if (qualifier.equals("watch")) {
           unHandledUIModeQualifiers.add(qualifier);
         } else {
@@ -244,44 +246,6 @@ public class FullyQualifiedName implements DataKey, Comparable<FullyQualifiedNam
       return FullyQualifiedName.of(
           parsedPackage == null ? pkg : parsedPackage, qualifiers, resourceType, resourceName);
     }
-
-    /**
-     * Generates a FullyQualifiedName for a file-based resource given the source Path.
-     *
-     * @param sourcePath the path of the file-based resource.
-     * @throws IllegalArgumentException if the file-based resource has an invalid filename
-     */
-    public FullyQualifiedName parse(Path sourcePath) {
-      return parse(deriveRawFullyQualifiedName(sourcePath));
-    }
-
-    private static String deriveRawFullyQualifiedName(Path source) {
-      if (source.getNameCount() < 2) {
-        throw new IllegalArgumentException(
-            String.format(
-                "The resource path %s is too short. "
-                    + "The path is expected to be <resource type>/<file name>.",
-                source));
-      }
-      String pathWithExtension =
-          source.subpath(source.getNameCount() - 2, source.getNameCount()).toString();
-      int extensionStart = pathWithExtension.indexOf('.');
-      if (extensionStart > 0) {
-        return pathWithExtension.substring(0, extensionStart);
-      }
-      return pathWithExtension;
-    }
-
-    // Grabs the extension portion of the path removed by deriveRawFullyQualifiedName.
-    private static String getSourceExtension(Path source) {
-      // TODO(corysmith): Find out if there is a filename parser utility.
-      String fileName = source.getFileName().toString();
-      int extensionStart = fileName.indexOf('.');
-      if (extensionStart > 0) {
-        return fileName.substring(extensionStart);
-      }
-      return "";
-    }
   }
 
   public static boolean isOverwritable(FullyQualifiedName name) {
@@ -342,11 +306,11 @@ public class FullyQualifiedName implements DataKey, Comparable<FullyQualifiedNam
    * Non-values Android Resource have a well defined file layout: From the resource directory, they
    * reside in &lt;resource type&gt;[-&lt;qualifier&gt;]/&lt;resource name&gt;[.extension]
    *
-   * @param source The original source of the file-based resource's FullyQualifiedName
+   * @param sourceExtension The extension of the resource represented by the FullyQualifiedName
    * @return A string representation of the FullyQualifiedName with the provided extension.
    */
-  public String toPathString(Path source) {
-    String sourceExtension = FullyQualifiedName.Factory.getSourceExtension(source);
+  public String toPathString(String sourceExtension) {
+    // TODO(corysmith): Does the extension belong in the FullyQualifiedName?
     return Paths.get(
             DASH_JOINER.join(
                 ImmutableList.<String>builder()
@@ -458,14 +422,13 @@ public class FullyQualifiedName implements DataKey, Comparable<FullyQualifiedNam
 
   @Override
   public void serializeTo(OutputStream out, int valueSize) throws IOException {
-    toSerializedBuilder().setValueSize(valueSize).build().writeDelimitedTo(out);
-  }
-
-  public SerializeFormat.DataKey.Builder toSerializedBuilder() {
-    return SerializeFormat.DataKey.newBuilder()
+    SerializeFormat.DataKey.newBuilder()
         .setKeyPackage(pkg)
+        .setValueSize(valueSize)
         .setResourceType(resourceType.getName().toUpperCase())
         .addAllQualifiers(qualifiers)
-        .setKeyValue(resourceName);
+        .setKeyValue(resourceName)
+        .build()
+        .writeDelimitedTo(out);
   }
 }

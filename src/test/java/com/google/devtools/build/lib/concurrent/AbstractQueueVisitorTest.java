@@ -229,7 +229,7 @@ public class AbstractQueueVisitorTest {
     executor.awaitTermination(TestUtils.WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
   }
 
-  private static void assertInterruptWorkers(ThreadPoolExecutor executor) throws Exception {
+  private void assertInterruptWorkers(ThreadPoolExecutor executor) throws Exception {
     final CountDownLatch latch1 = new CountDownLatch(1);
     final CountDownLatch latch2 = new CountDownLatch(1);
     final boolean[] workerThreadInterrupted = { false };
@@ -266,13 +266,14 @@ public class AbstractQueueVisitorTest {
   @Test
   public void failFast() throws Exception {
     // In failFast mode, we only run actions queued before the exception.
-    assertFailFast(null, true, false, "a", "b");
+    assertFailFast(null, true, false, false, "a", "b");
 
     // In !failFast mode, we complete all queued actions.
-    assertFailFast(null, false, false, "a", "b", "1", "2");
+    assertFailFast(null, false, false, false, "a", "b", "1", "2");
 
     // Now check fail-fast on interrupt:
-    assertFailFast(null, false, true, "a", "b");
+    assertFailFast(null, false, true, true, "a", "b");
+    assertFailFast(null, false, false, true, "a", "b", "1", "2");
   }
 
   @Test
@@ -280,29 +281,26 @@ public class AbstractQueueVisitorTest {
     ThreadPoolExecutor executor = new ThreadPoolExecutor(5, 5, 0, TimeUnit.SECONDS,
                                                          new LinkedBlockingQueue<Runnable>());
     // In failFast mode, we only run actions queued before the exception.
-    assertFailFast(executor, true, false, "a", "b");
+    assertFailFast(executor, true, false, false, "a", "b");
 
     // In !failFast mode, we complete all queued actions.
-    assertFailFast(executor, false, false, "a", "b", "1", "2");
+    assertFailFast(executor, false, false, false, "a", "b", "1", "2");
 
     // Now check fail-fast on interrupt:
-    assertFailFast(executor, false, true, "a", "b");
+    assertFailFast(executor, false, true, true, "a", "b");
+    assertFailFast(executor, false, false, true, "a", "b", "1", "2");
 
     executor.shutdown();
     assertTrue(executor.awaitTermination(TestUtils.WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS));
   }
 
-  private static void assertFailFast(
-      ThreadPoolExecutor executor,
-      boolean failFastOnException,
-      boolean interrupt,
-      String... expectedVisited)
-      throws Exception {
+  private void assertFailFast(ThreadPoolExecutor executor,
+                              boolean failFastOnException, boolean failFastOnInterrupt,
+                              boolean interrupt, String... expectedVisited) throws Exception {
     assertTrue(executor == null || !executor.isShutdown());
-    AbstractQueueVisitor visitor =
-        (executor == null)
-            ? new ConcreteQueueVisitor(failFastOnException)
-            : new ConcreteQueueVisitor(executor, failFastOnException);
+    AbstractQueueVisitor visitor = (executor == null)
+        ? new ConcreteQueueVisitor(failFastOnException, failFastOnInterrupt)
+        : new ConcreteQueueVisitor(executor, failFastOnException, failFastOnInterrupt);
 
     List<String> visitedList = Collections.synchronizedList(Lists.<String>newArrayList());
 
@@ -459,7 +457,7 @@ public class AbstractQueueVisitorTest {
     assertTrue(criticalErrorSeen.get());
   }
 
-  private static Runnable throwingRunnable() {
+  private Runnable throwingRunnable() {
     return new Runnable() {
       @Override
       public void run() {
@@ -468,7 +466,7 @@ public class AbstractQueueVisitorTest {
     };
   }
 
-  private static Runnable interruptingRunnable(final Thread thread) {
+  private Runnable interruptingRunnable(final Thread thread) {
     return new Runnable() {
       @Override
       public void run() {
@@ -519,7 +517,7 @@ public class AbstractQueueVisitorTest {
     }
 
     public CountingQueueVisitor(ThreadPoolExecutor executor) {
-      super(executor, false, true);
+      super(executor, false, true, true);
     }
 
     public void enqueue() {
@@ -550,12 +548,17 @@ public class AbstractQueueVisitorTest {
       super(5, 3L, TimeUnit.SECONDS, THREAD_NAME);
     }
 
-    public ConcreteQueueVisitor(boolean failFast) {
-      super(true, 5, 3L, TimeUnit.SECONDS, failFast, THREAD_NAME);
+    public ConcreteQueueVisitor(boolean failFast, boolean failFastOnInterrupt) {
+      super(true, 5, 3L, TimeUnit.SECONDS, failFast, failFastOnInterrupt, THREAD_NAME);
+    }
+
+    public ConcreteQueueVisitor(ThreadPoolExecutor executor, boolean failFast,
+        boolean failFastOnInterrupt) {
+      super(executor, /*shutdownOnCompletion=*/false, failFast, failFastOnInterrupt);
     }
 
     public ConcreteQueueVisitor(ThreadPoolExecutor executor, boolean failFast) {
-      super(executor, /*shutdownOnCompletion=*/ false, failFast);
+      super(executor, /*shutdownOnCompletion=*/false, failFast, true);
     }
   }
 
@@ -567,6 +570,7 @@ public class AbstractQueueVisitorTest {
         executor,
         /*shutdownOnCompletion=*/ true,
         /*failFastOnException=*/ false,
+        /*failFastOnInterrupt=*/ true,
         new ErrorClassifier() {
           @Override
           protected ErrorClassification classifyException(Exception e) {

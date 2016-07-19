@@ -34,6 +34,7 @@ import com.google.devtools.build.lib.analysis.util.BuildViewTestCase;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.rules.cpp.CcToolchainFeatures.FeatureConfiguration;
+import com.google.devtools.build.lib.rules.cpp.CppLinkAction.Builder;
 import com.google.devtools.build.lib.rules.cpp.Link.LinkStaticness;
 import com.google.devtools.build.lib.rules.cpp.Link.LinkTargetType;
 import com.google.devtools.build.lib.rules.cpp.LinkerInputs.LibraryToLink;
@@ -141,8 +142,8 @@ public class CppLinkActionTest extends BuildViewTestCase {
 
           @Override
           public Action generate(int i) {
-            CppLinkActionBuilder builder =
-                new CppLinkActionBuilder(ruleContext, outputFile) {
+            CppLinkAction.Builder builder =
+                new CppLinkAction.Builder(ruleContext, outputFile) {
                   @Override
                   protected Artifact getInterfaceSoBuilder() {
                     return interfaceSoBuilder;
@@ -183,8 +184,8 @@ public class CppLinkActionTest extends BuildViewTestCase {
 
           @Override
           public Action generate(int i) {
-            CppLinkActionBuilder builder =
-                new CppLinkActionBuilder(ruleContext, outputFile) {
+            CppLinkAction.Builder builder =
+                new CppLinkAction.Builder(ruleContext, outputFile) {
                   @Override
                   protected Artifact getInterfaceSoBuilder() {
                     return interfaceSoBuilder;
@@ -208,7 +209,7 @@ public class CppLinkActionTest extends BuildViewTestCase {
     final Artifact outputIfso = getDerivedArtifact(
         new PathFragment("output/path.ifso"), getTargetConfiguration().getBinDirectory(),
         ActionsTestUtil.NULL_ARTIFACT_OWNER);
-    CppLinkActionBuilder builder = new CppLinkActionBuilder(ruleContext, output);
+    CppLinkAction.Builder builder = new CppLinkAction.Builder(ruleContext, output);
     builder.setLinkType(LinkTargetType.STATIC_LIBRARY);
     assertTrue(builder.canSplitCommandLine());
 
@@ -280,7 +281,7 @@ public class CppLinkActionTest extends BuildViewTestCase {
       || resources.getIoUsage() == scaledSet.getIoUsage());
   }
 
-  private CppLinkActionBuilder createLinkBuilder(
+  private Builder createLinkBuilder(
       Link.LinkTargetType type,
       String outputPath,
       Iterable<Artifact> nonLibraryInputs,
@@ -288,8 +289,8 @@ public class CppLinkActionTest extends BuildViewTestCase {
       FeatureConfiguration featureConfiguration)
       throws Exception {
     RuleContext ruleContext = createDummyRuleContext();
-    CppLinkActionBuilder builder =
-        new CppLinkActionBuilder(
+    Builder builder =
+        new CppLinkAction.Builder(
                 ruleContext,
                 new Artifact(
                     new PathFragment(outputPath), getTargetConfiguration().getBinDirectory()),

@@ -39,6 +39,7 @@ import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.events.NullEventHandler;
 import com.google.devtools.build.lib.events.StoredEventHandler;
+import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.pkgcache.PathPackageLocator;
 import com.google.devtools.build.lib.testutil.ManualClock;
 import com.google.devtools.build.lib.testutil.TestConstants;
@@ -53,8 +54,8 @@ import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.lib.vfs.RootedPath;
+import com.google.devtools.build.lib.vfs.UnixFileSystem;
 import com.google.devtools.build.lib.vfs.inmemoryfs.InMemoryFileSystem;
-import com.google.devtools.build.lib.vfs.util.FileSystems;
 import com.google.devtools.build.skyframe.ErrorInfo;
 import com.google.devtools.build.skyframe.EvaluationResult;
 import com.google.devtools.build.skyframe.InMemoryMemoizingEvaluator;
@@ -88,7 +89,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
-/** Tests for {@link FileFunction}. */
+/**
+ * Tests for {@link FileFunction}.
+ */
 @RunWith(JUnit4.class)
 public class FileFunctionTest {
   private CustomInMemoryFs fs;
@@ -100,7 +103,7 @@ public class FileFunctionTest {
   private RecordingDifferencer differencer;
 
   @Before
-  public final void createFsAndRoot() throws Exception {
+  public final void createFsAndRoot() throws Exception  {
     fastMd5 = true;
     manualClock = new ManualClock();
     createFsAndRoot(new CustomInMemoryFs(manualClock));
@@ -120,18 +123,16 @@ public class FileFunctionTest {
 
   private SequentialBuildDriver makeDriver(boolean errorOnExternalFiles) {
     AtomicReference<PathPackageLocator> pkgLocatorRef = new AtomicReference<>(pkgLocator);
-    BlazeDirectories directories =
-        new BlazeDirectories(pkgRoot, outputBase, pkgRoot, TestConstants.PRODUCT_NAME);
+    BlazeDirectories directories = new BlazeDirectories(pkgRoot, outputBase, pkgRoot,
+        TestConstants.PRODUCT_NAME);
     ExternalFilesHelper externalFilesHelper =
         new ExternalFilesHelper(pkgLocatorRef, errorOnExternalFiles, directories);
     differencer = new RecordingDifferencer();
     MemoizingEvaluator evaluator =
         new InMemoryMemoizingEvaluator(
             ImmutableMap.<SkyFunctionName, SkyFunction>builder()
-                .put(
-                    SkyFunctions.FILE_STATE,
-                    new FileStateFunction(
-                        new AtomicReference<TimestampGranularityMonitor>(), externalFilesHelper))
+                .put(SkyFunctions.FILE_STATE, new FileStateFunction(
+                    new AtomicReference<TimestampGranularityMonitor>(), externalFilesHelper))
                 .put(
                     SkyFunctions.FILE_SYMLINK_CYCLE_UNIQUENESS,
                     new FileSymlinkCycleUniquenessFunction())
@@ -153,8 +154,7 @@ public class FileFunctionTest {
                     SkyFunctions.WORKSPACE_FILE,
                     new WorkspaceFileFunction(
                         TestRuleClassProvider.getRuleClassProvider(),
-                        TestConstants.PACKAGE_FACTORY_FACTORY_FOR_TESTING.create(
-                            TestRuleClassProvider.getRuleClassProvider(), fs),
+                        new PackageFactory(TestRuleClassProvider.getRuleClassProvider()),
                         directories))
                 .put(SkyFunctions.EXTERNAL_PACKAGE, new ExternalPackageFunction())
                 .build(),
@@ -470,8 +470,8 @@ public class FileFunctionTest {
 
   @Test
   public void testUnreadableFileWithFastDigest() throws Exception {
-    final byte[] expectedDigest =
-        MessageDigest.getInstance("md5").digest("blah".getBytes(StandardCharsets.UTF_8));
+    final byte[] expectedDigest = MessageDigest.getInstance("md5").digest(
+        "blah".getBytes(StandardCharsets.UTF_8));
 
     createFsAndRoot(
         new CustomInMemoryFs(manualClock) {
@@ -1121,8 +1121,7 @@ public class FileFunctionTest {
 
     FileSystem oldFileSystem = Path.getFileSystemForSerialization();
     try {
-      // InMemoryFS is not supported for serialization.
-      FileSystem fs = FileSystems.getJavaIoFileSystem();
+      FileSystem fs = new UnixFileSystem(); // InMemoryFS is not supported for serialization.
       Path.setFileSystemForSerialization(fs);
       pkgRoot = fs.getRootDirectory();
 
@@ -1312,8 +1311,8 @@ public class FileFunctionTest {
   }
 
   /**
-   * Returns a callback that, when executed, deletes the given path. Not meant to be called directly
-   * by tests.
+   * Returns a callback that, when executed, deletes the given path.
+   * Not meant to be called directly by tests.
    */
   private Runnable makeDeletePathCallback(final Path toDelete) {
     return new Runnable() {
@@ -1330,8 +1329,8 @@ public class FileFunctionTest {
   }
 
   /**
-   * Returns a callback that, when executed, writes the given bytes to the given file path. Not
-   * meant to be called directly by tests.
+   * Returns a callback that, when executed, writes the given bytes to the given file path.
+   * Not meant to be called directly by tests.
    */
   private Runnable makeWriteFileContentCallback(final Path toChange, final byte[] contents) {
     return new Runnable() {
@@ -1351,8 +1350,8 @@ public class FileFunctionTest {
   }
 
   /**
-   * Returns a callback that, when executed, creates the given directory path. Not meant to be
-   * called directly by tests.
+   * Returns a callback that, when executed, creates the given directory path.
+   * Not meant to be called directly by tests.
    */
   private Runnable makeCreateDirectoryCallback(final Path toCreate) {
     return new Runnable() {
@@ -1369,8 +1368,8 @@ public class FileFunctionTest {
   }
 
   /**
-   * Returns a callback that, when executed, makes {@code toLink} a symlink to {@code toTarget}. Not
-   * meant to be called directly by tests.
+   * Returns a callback that, when executed, makes {@code toLink} a symlink to {@code toTarget}.
+   * Not meant to be called directly by tests.
    */
   private Runnable makeSymlinkCallback(final Path toLink, final PathFragment toTarget) {
     return new Runnable() {
@@ -1386,7 +1385,9 @@ public class FileFunctionTest {
     };
   }
 
-  /** Returns the files that would be changed/created if {@code path} were to be changed/created. */
+  /**
+   * Returns the files that would be changed/created if {@code path} were to be changed/created.
+   */
   private ImmutableList<String> filesTouchedIfTouched(Path path) {
     List<String> filesToBeTouched = Lists.newArrayList();
     do {
@@ -1398,13 +1399,12 @@ public class FileFunctionTest {
 
   /**
    * Changes the contents of the FileValue for the given file in some way e.g.
-   *
    * <ul>
-   * <li> If it's a regular file, the contents will be changed.
-   * <li> If it's a non-existent file, it will be created.
-   *     <ul>
-   *     and then returns the file(s) changed paired with a callback to undo the change. Not meant
-   *     to be called directly by tests.
+   *   <li> If it's a regular file, the contents will be changed.
+   *   <li> If it's a non-existent file, it will be created.
+   * <ul>
+   * and then returns the file(s) changed paired with a callback to undo the change. Not meant to
+   * be called directly by tests.
    */
   private Pair<ImmutableList<String>, Runnable> changeFile(String fileStringToChange)
       throws Exception {
@@ -1426,13 +1426,12 @@ public class FileFunctionTest {
 
   /**
    * Changes the contents of the FileValue for the given directory in some way e.g.
-   *
    * <ul>
-   * <li> If it exists, the directory will be deleted.
-   * <li> If it doesn't exist, the directory will be created.
-   *     <ul>
-   *     and then returns the file(s) changed paired with a callback to undo the change. Not meant
-   *     to be called directly by tests.
+   *   <li> If it exists, the directory will be deleted.
+   *   <li> If it doesn't exist, the directory will be created.
+   * <ul>
+   * and then returns the file(s) changed paired with a callback to undo the change. Not meant to
+   * be called directly by tests.
    */
   private Pair<ImmutableList<String>, Runnable> changeDirectory(String directoryStringToChange)
       throws Exception {
@@ -1450,13 +1449,14 @@ public class FileFunctionTest {
   }
 
   /**
-   * Performs filesystem operations to change the file or directory denoted by {@code
-   * changedPathString} and returns the file(s) changed paired with a callback to undo the change.
+   * Performs filesystem operations to change the file or directory denoted by
+   * {@code changedPathString} and returns the file(s) changed paired with a callback to undo the
+   * change.
    * Not meant to be called directly by tests.
    *
-   * @param isSupposedToBeFile whether the path denoted by the given string is supposed to be a file
-   *     or a directory. This is needed is the path doesn't exist yet, and so the filesystem doesn't
-   *     know.
+   * @param isSupposedToBeFile whether the path denoted by the given string is supposed to be a
+   *                           file or a directory. This is needed is the path doesn't exist yet,
+   *                           and so the filesystem doesn't know.
    */
   private Pair<ImmutableList<String>, Runnable> change(
       String changedPathString, boolean isSupposedToBeFile) throws Exception {
@@ -1503,8 +1503,8 @@ public class FileFunctionTest {
 
   /**
    * Asserts that if the contents of {@code changedPathString} changes, then the FileValue
-   * corresponding to {@code pathString} will change. Returns the paths of all files seen. Not meant
-   * to be called directly by tests.
+   * corresponding to {@code pathString} will change. Returns the paths of all files seen.
+   * Not meant to be called directly by tests.
    */
   private Set<RootedPath> assertChangesIfChanges(
       String changedPathString, boolean isFile, boolean changes, String pathString)
@@ -1544,7 +1544,10 @@ public class FileFunctionTest {
     assertTrue(
         String.format(
             "Changing the contents of %s %s should%s change the value for file %s.",
-            isFile ? "file" : "directory", changedPathString, changes ? "" : " not", pathString),
+            isFile ? "file" : "directory",
+            changedPathString,
+            changes ? "" : " not",
+            pathString),
         changes != newValue.equals(oldValue));
 
     // Restore the original file.

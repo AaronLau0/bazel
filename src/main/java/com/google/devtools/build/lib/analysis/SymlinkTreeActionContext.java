@@ -31,7 +31,6 @@ public interface SymlinkTreeActionContext extends ActionContext {
       SymlinkTreeAction action,
       ActionExecutionContext actionExecutionContext,
       PathFragment shExecutable,
-      ImmutableMap<String, String> shellEnvironment,
-      boolean enableRunfiles)
+      ImmutableMap<String, String> shellEnvironment)
       throws ActionExecutionException, InterruptedException;
 }

@@ -17,7 +17,6 @@ package com.google.devtools.build.lib.rules.objc;
 import com.google.common.io.ByteSource;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.rules.apple.AppleConfiguration;
-import com.google.devtools.build.lib.rules.apple.Platform.PlatformType;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.xcode.bundlemerge.proto.BundleMergeProtos;
 import com.google.devtools.build.xcode.bundlemerge.proto.BundleMergeProtos.Control;
@@ -58,7 +57,7 @@ final class BundleMergeControlBytes extends ByteSource {
             // TODO(bazel-team): Add rule attribute for specifying targeted device family
             .setMinimumOsVersion(bundling.getMinimumOsVersion().toString())
             .setSdkVersion(appleConfiguration.getIosSdkVersion().toString())
-            .setPlatform(appleConfiguration.getMultiArchPlatform(PlatformType.IOS).name())
+            .setPlatform(appleConfiguration.getBundlingPlatform().name())
             .setBundleRoot(bundling.getBundleDir());
 
     if (bundling.getBundleInfoplist().isPresent()) {

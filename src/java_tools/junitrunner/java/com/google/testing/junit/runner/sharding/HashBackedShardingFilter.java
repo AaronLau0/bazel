@@ -23,7 +23,8 @@ import org.junit.runner.manipulation.Filter;
  * Sharding filter that uses the hashcode of the test description to
  * assign it to a shard.
  */
-final class HashBackedShardingFilter extends Filter {
+class HashBackedShardingFilter extends Filter {
+
   private final int shardIndex;
   private final int totalShards;
 

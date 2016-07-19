@@ -51,11 +51,10 @@ public final class QueryUtil {
    *
    * <p>Should ony be used by QueryExpressions when it is the only way of achieving correctness.
    */
-  public static <T> Set<T> evalAll(
-      QueryEnvironment<T> env, VariableContext<T> context, QueryExpression expr)
-          throws QueryException, InterruptedException {
+  public static <T> Set<T> evalAll(QueryEnvironment<T> env, QueryExpression expr)
+      throws QueryException, InterruptedException {
     AggregateAllCallback<T> callback = new AggregateAllCallback<>();
-    env.eval(expr, context, callback);
+    env.eval(expr, callback);
     return callback.result;
   }
 

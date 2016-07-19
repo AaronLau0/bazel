@@ -19,11 +19,9 @@ from xml.etree import ElementTree
 
 from tools.android.stubify_manifest import ANDROID
 from tools.android.stubify_manifest import BadManifestException
-from tools.android.stubify_manifest import INSTANT_RUN_BOOTSTRAP_APPLICATION
-from tools.android.stubify_manifest import MOBILE_INSTALL_STUB_APPLICATION
 from tools.android.stubify_manifest import READ_EXTERNAL_STORAGE
-from tools.android.stubify_manifest import StubifyInstantRun
-from tools.android.stubify_manifest import StubifyMobileInstall
+from tools.android.stubify_manifest import STUB_APPLICATION
+from tools.android.stubify_manifest import Stubify
 
 
 MANIFEST_WITH_APPLICATION = """
@@ -75,7 +73,7 @@ MULTIPLE_APPLICATIONS = """
 """
 
 
-class StubifyMobileInstallTest(unittest.TestCase):
+class StubifyTest(unittest.TestCase):
 
   def GetApplication(self, manifest_string):
     manifest = ElementTree.fromstring(manifest_string)
@@ -83,23 +81,20 @@ class StubifyMobileInstallTest(unittest.TestCase):
     return application.get("{%s}name" % ANDROID)
 
   def testReplacesOldApplication(self):
-    new_manifest, old_application, app_pkg = StubifyMobileInstall(
-        MANIFEST_WITH_APPLICATION)
+    new_manifest, old_application, app_pkg = Stubify(MANIFEST_WITH_APPLICATION)
     self.assertEqual("com.google.package", app_pkg)
     self.assertEqual("old.application", old_application)
-    self.assertEqual(
-        MOBILE_INSTALL_STUB_APPLICATION, self.GetApplication(new_manifest))
+    self.assertEqual(STUB_APPLICATION, self.GetApplication(new_manifest))
 
   def testAddsNewAplication(self):
     new_manifest, old_application, app_pkg = (
-        StubifyMobileInstall(MANIFEST_WITHOUT_APPLICATION))
+        Stubify(MANIFEST_WITHOUT_APPLICATION))
     self.assertEqual("com.google.package", app_pkg)
     self.assertEqual("android.app.Application", old_application)
-    self.assertEqual(
-        MOBILE_INSTALL_STUB_APPLICATION, self.GetApplication(new_manifest))
+    self.assertEqual(STUB_APPLICATION, self.GetApplication(new_manifest))
 
   def testRemovesHasCode(self):
-    new_manifest, _, _ = StubifyMobileInstall(MANIFEST_WITH_HASCODE)
+    new_manifest, _, _ = Stubify(MANIFEST_WITH_HASCODE)
     application = ElementTree.fromstring(new_manifest).find("application")
     self.assertFalse(("{%s}hasCode" % ANDROID) in application.attrib)
 
@@ -112,40 +107,19 @@ class StubifyMobileInstallTest(unittest.TestCase):
 
   def testAddsPermission(self):
     self.assertHasPermission(
-        StubifyMobileInstall(
-            MANIFEST_WITH_APPLICATION)[0], READ_EXTERNAL_STORAGE)
+        Stubify(MANIFEST_WITH_APPLICATION)[0], READ_EXTERNAL_STORAGE)
 
   def testDoesNotDuplicatePermission(self):
     self.assertHasPermission(
-        StubifyMobileInstall(
-            MANIFEST_WITH_PERMISSION)[0], READ_EXTERNAL_STORAGE)
+        Stubify(MANIFEST_WITH_PERMISSION)[0], READ_EXTERNAL_STORAGE)
 
   def testBadManifest(self):
     with self.assertRaises(BadManifestException):
-      StubifyMobileInstall(BAD_MANIFEST)
+      Stubify(BAD_MANIFEST)
 
   def testTooManyApplications(self):
     with self.assertRaises(BadManifestException):
-      StubifyMobileInstall(MULTIPLE_APPLICATIONS)
-
-
-class StubifyInstantRunTest(unittest.TestCase):
-
-  def testReplacesOldApplication(self):
-    new_manifest = StubifyInstantRun(MANIFEST_WITH_APPLICATION)
-    manifest = ElementTree.fromstring(new_manifest)
-    application = manifest.find("application")
-    self.assertEqual(INSTANT_RUN_BOOTSTRAP_APPLICATION,
-                     application.get("{%s}name" % ANDROID))
-    self.assertEqual("old.application", application.get("name"))
-
-  def testReplacesAndSavesOldApplication(self):
-    new_manifest = StubifyInstantRun(MANIFEST_WITHOUT_APPLICATION)
-    manifest = ElementTree.fromstring(new_manifest)
-    application = manifest.find("application")
-    self.assertEqual(INSTANT_RUN_BOOTSTRAP_APPLICATION,
-                     application.get("{%s}name" % ANDROID))
-    self.assertEqual(None, application.get("name"))
+      Stubify(MULTIPLE_APPLICATIONS)
 
 
 if __name__ == "__main__":

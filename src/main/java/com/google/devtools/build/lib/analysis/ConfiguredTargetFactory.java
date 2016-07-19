@@ -257,7 +257,7 @@ public final class ConfiguredTargetFactory {
       return createFailConfiguredTarget(ruleContext);
     }
 
-    if (rule.getRuleClassObject().isSkylark()) {
+    if (rule.getRuleClassObject().isSkylarkExecutable()) {
       // TODO(bazel-team): maybe merge with RuleConfiguredTargetBuilder?
       return SkylarkRuleConfiguredTargetBuilder.buildRule(
           ruleContext,

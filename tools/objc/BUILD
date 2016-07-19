@@ -144,6 +144,11 @@ filegroup(
     srcs = ["protobuf_compiler.py"],
 )
 
+objc_library(
+    name = "objc_protobuf_lib",
+    deps = [":dummy_lib"],
+)
+
 filegroup(
     name = "protobuf_compiler_support",
     srcs = ["protobuf_support"],

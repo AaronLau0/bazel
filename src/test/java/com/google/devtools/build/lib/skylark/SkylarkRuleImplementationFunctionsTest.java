@@ -35,8 +35,8 @@ import com.google.devtools.build.lib.analysis.actions.TemplateExpansionAction.Su
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.rules.SkylarkRuleContext;
 import com.google.devtools.build.lib.skylark.util.SkylarkTestCase;
-import com.google.devtools.build.lib.skylarkinterface.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
+import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature.Param;
 import com.google.devtools.build.lib.syntax.BuiltinFunction;
 import com.google.devtools.build.lib.syntax.Environment;
 import com.google.devtools.build.lib.syntax.EvalException;
@@ -47,7 +47,6 @@ import com.google.devtools.build.lib.syntax.SkylarkList.MutableList;
 import com.google.devtools.build.lib.syntax.SkylarkNestedSet;
 import com.google.devtools.build.lib.testutil.MoreAsserts;
 
-import com.google.devtools.build.lib.util.OsUtils;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,18 +67,10 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
   @SkylarkSignature(
     name = "mock",
     documented = false,
-    parameters = {
-      @Param(name = "mandatory", doc = ""),
-      @Param(name = "optional", doc = "", defaultValue = "None"),
-      @Param(name = "mandatory_key", doc = "", positional = false, named = true),
-      @Param(
-        name = "optional_key",
-        doc = "",
-        defaultValue = "'x'",
-        positional = false,
-        named = true
-      )
-    },
+    mandatoryPositionals = {@Param(name = "mandatory", doc = "")},
+    optionalPositionals = {@Param(name = "optional", doc = "")},
+    mandatoryNamedOnly = {@Param(name = "mandatory_key", doc = "")},
+    optionalNamedOnly = {@Param(name = "optional_key", doc = "", defaultValue = "'x'")},
     useEnvironment = true
   )
   private BuiltinFunction mockFunc;
@@ -92,7 +83,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
   BuiltinFunction throwFunction;
 
   @Before
-  public final void createBuildFile() throws Exception {
+  public final void createBuildFile() throws Exception  {
     scratch.file(
         "foo/BUILD",
         "genrule(name = 'foo',",
@@ -133,10 +124,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         new BuiltinFunction("mock") {
           @SuppressWarnings("unused")
           public Object invoke(
-              Object mandatory,
-              Object optional,
-              Object mandatoryKey,
-              Object optionalKey,
+              Object mandatory, Object optional, Object mandatoryKey, Object optionalKey,
               Environment env) {
             return EvalUtils.optionMap(
                 env,
@@ -240,8 +228,8 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
                 ruleContext.getRuleContext().getAnalysisEnvironment().getRegisteredActions());
     assertArtifactFilenames(action.getInputs(), "a.txt", "b.img");
     assertArtifactFilenames(action.getOutputs(), "a.txt", "b.img");
-    MoreAsserts.assertContainsSublist(
-        action.getArguments(), "-c", "dummy_command", "", "--a", "--b");
+    MoreAsserts.assertContainsSublist(action.getArguments(),
+        "-c", "dummy_command", "", "--a", "--b");
     assertEquals("DummyMnemonic", action.getMnemonic());
     assertEquals("dummy_message", action.getProgressMessage());
     assertEquals(targetConfig.getLocalShellEnvironment(), action.getEnvironment());
@@ -419,6 +407,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         "      inputs = ctx.files.srcs,",
         "      mnemonic = 'EA',",
         "  )",
+
         "empty_action_rule = rule(",
         "    implementation = _impl,",
         "    attrs = {",
@@ -431,9 +420,11 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         "load('/test/empty', 'empty_action_rule')",
         "empty_action_rule(name = 'my_empty_action',",
         "                srcs = ['foo.in', 'other_foo.in'])",
+
         "action_listener(name = 'listener',",
         "                mnemonics = ['EA'],",
         "                extra_actions = [':extra'])",
+
         "extra_action(name = 'extra',",
         "             cmd='')");
 
@@ -487,16 +478,15 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
     assertMatches(
         "Expanded string",
         expectedPattern,
-        (String)
-            evalRuleContextCode(
-                ruleContext, String.format("ruleContext.expand_location('$(%s)')", command)));
+        (String) evalRuleContextCode(
+            ruleContext, String.format("ruleContext.expand_location('$(%s)')", command)));
   }
 
   private void assertMatches(String description, String expectedPattern, String computedValue)
       throws Exception {
     assertTrue(
-        Printer.format(
-            "%s %r did not match pattern '%s'", description, computedValue, expectedPattern),
+        Printer.format("%s %r did not match pattern '%s'",
+            description, computedValue, expectedPattern),
         Pattern.matches(expectedPattern, computedValue));
   }
 
@@ -510,7 +500,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
     @SuppressWarnings("unchecked")
     List<String> argv = (List<String>) (List<?>) (MutableList) lookup("argv");
     assertThat(argv).hasSize(3);
-    assertMatches("argv[0]", "^.*/bash" + OsUtils.executableExtension() + "$", argv.get(0));
+    assertMatches("argv[0]", "^.*/bash$", argv.get(0));
     assertThat(argv.get(1)).isEqualTo("-c");
     assertThat(argv.get(2)).isEqualTo("I got the World on a string");
   }
@@ -545,11 +535,11 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
     @SuppressWarnings("unchecked")
     List<String> argv = (List<String>) (List<?>) (MutableList) lookup("argv");
     assertThat(argv).hasSize(3);
-    assertMatches("argv[0]", "^.*/bash" + OsUtils.executableExtension() + "$", argv.get(0));
+    assertMatches("argv[0]", "^.*/bash$", argv.get(0));
     assertThat(argv.get(1)).isEqualTo("-c");
     assertMatches("argv[2]", "A.*/mytool .*/mytool.sh B.*file3.dat", argv.get(2));
   }
-
+  
   @Test
   public void testResolveCommandExecutionRequirements() throws Exception {
     // Tests that requires-darwin execution requirements result in the usage of /bin/bash.
@@ -575,7 +565,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
     @SuppressWarnings("unchecked")
     List<String> argv = (List<String>) (List<?>) (MutableList) lookup("argv");
     assertThat(argv).hasSize(2);
-    assertMatches("argv[0]", "^.*/bash" + OsUtils.executableExtension() + "$", argv.get(0));
+    assertMatches("argv[0]", "^.*/bash$", argv.get(0));
     assertMatches("argv[1]", "^.*/resolve_me[.]script[.]sh$", argv.get(1));
   }
 
@@ -865,7 +855,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
     String java = (String) evalRuleContextCode(ctx, "ruleContext.var['JAVA']");
     // Get the last path segment
     java = java.substring(java.lastIndexOf('/'));
-    assertEquals("/java" + OsUtils.executableExtension(), java);
+    assertEquals("/java", java);
   }
 
   @Test
@@ -916,7 +906,9 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         fail(
             String.format(
                 "Found %d error(s), but none with the expected message '%s'. First error: '%s'",
-                count, errorMsg, first));
+                count,
+                errorMsg,
+                first));
       }
     } finally {
       eventCollector.clear();
@@ -959,20 +951,18 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
 
   @Test
   public void testGlobInImplicitOutputs() throws Exception {
-    scratch.file(
-        "test/glob.bzl",
+    scratch.file("test/glob.bzl",
         "def _impl(ctx):",
         "  ctx.empty_action(",
         "    inputs = [],",
         "  )",
-        "def _foo():",
+        "def _foo(attr_map):",
         "  return native.glob(['*'])",
         "glob_rule = rule(",
         "  implementation = _impl,",
         "  outputs = _foo,",
         ")");
-    scratch.file(
-        "test/BUILD",
+    scratch.file("test/BUILD",
         "load('/test/glob', 'glob_rule')",
         "glob_rule(name = 'my_glob',",
         "  srcs = ['foo.bar', 'other_foo.bar'])");
@@ -983,9 +973,15 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
 
   @Test
   public void testRuleFromBzlFile() throws Exception {
-    scratch.file("test/rule.bzl", "def _impl(ctx): return", "foo = rule(implementation = _impl)");
-    scratch.file("test/ext.bzl", "load('//test:rule.bzl', 'foo')", "a = 1", "foo(name = 'x')");
-    scratch.file("test/BUILD", "load('//test:ext.bzl', 'a')");
+    scratch.file("test/rule.bzl",
+        "def _impl(ctx): return",
+        "foo = rule(implementation = _impl)");
+    scratch.file("test/ext.bzl",
+        "load('//test:rule.bzl', 'foo')",
+        "a = 1",
+        "foo(name = 'x')");
+    scratch.file("test/BUILD",
+        "load('//test:ext.bzl', 'a')");
     reporter.removeHandler(failFastHandler);
     getConfiguredTarget("//test:x");
     assertContainsEvent("Cannot instantiate a rule when loading a .bzl file");
@@ -993,8 +989,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
 
   @Test
   public void testImplicitOutputsFromGlob() throws Exception {
-    scratch.file(
-        "test/glob.bzl",
+    scratch.file("test/glob.bzl",
         "def _impl(ctx):",
         "  outs = ctx.outputs",
         "  for i in ctx.attr.srcs:",
@@ -1003,9 +998,9 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         "      output = o,",
         "      content = 'hoho')",
         "",
-        "def _foo(srcs):",
+        "def _foo(attr_map):",
         "  outs = {}",
-        "  for i in srcs:",
+        "  for i in attr_map.srcs:",
         "    outs['foo_' + i.name] = i.name + '.out'",
         "  return outs",
         "",
@@ -1018,8 +1013,7 @@ public class SkylarkRuleImplementationFunctionsTest extends SkylarkTestCase {
         ")");
     scratch.file("test/a.bar", "a");
     scratch.file("test/b.bar", "b");
-    scratch.file(
-        "test/BUILD",
+    scratch.file("test/BUILD",
         "load('/test/glob', 'glob_rule')",
         "glob_rule(name = 'my_glob', srcs = glob(['*.bar']))");
     ConfiguredTarget ct = getConfiguredTarget("//test:my_glob");

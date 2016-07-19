@@ -22,8 +22,6 @@ import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
 import com.google.devtools.build.lib.bazel.BazelMain;
 import com.google.devtools.build.lib.bazel.rules.BazelRuleClassProvider;
 import com.google.devtools.build.lib.packages.util.DocumentationTestUtil;
-import com.google.devtools.build.lib.util.OS;
-import com.google.devtools.build.lib.windows.util.WindowsTestUtil;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,11 +40,7 @@ public class BazelDocumentationTest {
    */
   @Test
   public void testBazelUserManual() throws Exception {
-    String documentationFilePath = "site/docs/bazel-user-manual.html";
-    if (OS.getCurrent() == OS.WINDOWS) {
-      documentationFilePath = WindowsTestUtil.getRunfile("io_bazel/" + documentationFilePath);
-    }
-    final File documentationFile = new File(documentationFilePath);
+    final File documentationFile = new File("site/docs/bazel-user-manual.html");
     DocumentationTestUtil.validateUserManual(
         BazelMain.BAZEL_MODULES,
         BazelRuleClassProvider.create(),

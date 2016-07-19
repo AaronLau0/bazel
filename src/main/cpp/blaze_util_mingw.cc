@@ -24,7 +24,6 @@
 
 #include <cstdlib>
 #include <cstdio>
-#include <thread>  // NOLINT (to slience Google-internal linter)
 
 #include "src/main/cpp/blaze_util.h"
 #include "src/main/cpp/blaze_util_platform.h"
@@ -147,10 +146,6 @@ void ReplaceAll(
 
 // Max command line length is per CreateProcess documentation
 // (https://msdn.microsoft.com/en-us/library/ms682425(VS.85).aspx)
-//
-// Quoting rules are described here:
-// https://blogs.msdn.microsoft.com/twistylittlepassagesallalike/2011/04/23/everyone-quotes-command-line-arguments-the-wrong-way/
-
 static const int MAX_CMDLINE_LENGTH = 32768;
 
 struct CmdLine {
@@ -174,39 +169,19 @@ static void CreateCommandLine(CmdLine* result, const string& exe,
       cmdline.append(" ");
     }
 
-    bool has_space = s.find(" ") != string::npos;
-
-    if (has_space) {
-      cmdline.append("\"");
+    string arg = s;
+    // Quote quotes.
+    if (s.find("\"") != string::npos) {
+      ReplaceAll(&arg, "\"", "\\\"");
     }
 
-    std::string::const_iterator it = s.begin();
-    while (it != s.end()) {
-      char ch = *it++;
-      switch (ch) {
-        case '"':
-          // Escape double quotes
-          cmdline.append("\\\"");
-          break;
-
-        case '\\':
-          if (it == s.end()) {
-            // Backslashes at the end of the string are quoted if we add quotes
-            cmdline.append(has_space ? "\\\\" : "\\");
-          } else {
-            // Backslashes everywhere else are quoted if they are followed by a
-            // quote or a backslash
-            cmdline.append(*it == '"' || *it == '\\' ? "\\\\" : "\\");
-          }
-          break;
-
-         default:
-           cmdline.append(1, ch);
-      }
-    }
-
-    if (has_space) {
+    // Quotize spaces.
+    if (arg.find(" ") != string::npos) {
       cmdline.append("\"");
+      cmdline.append(arg);
+      cmdline.append("\"");
+    } else {
+      cmdline.append(arg);
     }
   }
 
@@ -263,9 +238,7 @@ string RunProgram(
       &processInfo);  // _Out_       LPPROCESS_INFORMATION lpProcessInformation
 
   if (!ok) {
-    pdie(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR,
-         "RunProgram/CreateProcess: Error %d while executing %s",
-         GetLastError(), cmdline.cmdline);
+    pdie(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR, "CreateProcess");
   }
 
   CloseHandle(pipe_write);
@@ -322,7 +295,7 @@ class DummyBlazeServerStartup : public BlazeServerStartup {
  public:
   DummyBlazeServerStartup() {}
   virtual ~DummyBlazeServerStartup() {}
-  virtual bool IsStillAlive() { return true; }
+  bool IsStillAlive() override { return true; }
 };
 
 void ExecuteDaemon(const string& exe, const std::vector<string>& args_vector,
@@ -335,23 +308,21 @@ void ExecuteDaemon(const string& exe, const std::vector<string>& args_vector,
   }
 
   SECURITY_ATTRIBUTES sa;
+
   sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-  // We redirect stdout and stderr by telling CreateProcess to use a file handle
-  // we open below and these handles must be inheriatable
   sa.bInheritHandle = TRUE;
   sa.lpSecurityDescriptor = NULL;
 
-  HANDLE output_file = CreateFile(
-      ConvertPath(daemon_output).c_str(),  // lpFileName
-      GENERIC_READ | GENERIC_WRITE,        // dwDesiredAccess
-      // So that the file can be read while the server is running
-      FILE_SHARE_READ,                     // dwShareMode
-      &sa,                                 // lpSecurityAttributes
-      CREATE_ALWAYS,                       // dwCreationDisposition
-      FILE_ATTRIBUTE_NORMAL,               // dwFlagsAndAttributes
-      NULL);                               // hTemplateFile
+  HANDLE output_file;
 
-  if (output_file == INVALID_HANDLE_VALUE) {
+  if (!CreateFile(
+      daemon_output.c_str(),
+      GENERIC_READ | GENERIC_WRITE,
+      0,
+      &sa,
+      CREATE_ALWAYS,
+      FILE_ATTRIBUTE_NORMAL,
+      NULL)) {
     pdie(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR, "CreateFile");
   }
 
@@ -380,12 +351,12 @@ void ExecuteDaemon(const string& exe, const std::vector<string>& args_vector,
   SetEnvironmentVariable("BAZEL_SH", getenv("BAZEL_SH"));
 
   bool ok = CreateProcess(
-      NULL,  // _In_opt_    LPCTSTR               lpApplicationName,
+      NULL,           // _In_opt_    LPCTSTR               lpApplicationName,
       //                 _Inout_opt_ LPTSTR                lpCommandLine,
       cmdline.cmdline,
-      NULL,  // _In_opt_    LPSECURITY_ATTRIBUTES lpProcessAttributes,
-      NULL,  // _In_opt_    LPSECURITY_ATTRIBUTES lpThreadAttributes,
-      TRUE,  // _In_        BOOL                  bInheritHandles,
+      NULL,           // _In_opt_    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+      NULL,           // _In_opt_    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+      TRUE,           // _In_        BOOL                  bInheritHandles,
       //                 _In_        DWORD                 dwCreationFlags,
       DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
       NULL,           // _In_opt_    LPVOID                lpEnvironment,
@@ -394,16 +365,14 @@ void ExecuteDaemon(const string& exe, const std::vector<string>& args_vector,
       &processInfo);  // _Out_       LPPROCESS_INFORMATION lpProcessInformation
 
   if (!ok) {
-    pdie(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR,
-         "ExecuteDaemon/CreateProcess: error %u executing: %s\n",
-         GetLastError(), cmdline.cmdline);
+    pdie(blaze_exit_code::LOCAL_ENVIRONMENTAL_ERROR, "CreateProcess");
   }
 
   CloseHandle(output_file);
   CloseHandle(pipe_write);
   CloseHandle(pipe_read);
 
-  string pid_string = ToString(processInfo.dwProcessId);
+  string pid_string = ToString(getpid());
   string pid_file = blaze_util::JoinPath(server_dir, ServerPidFile());
   if (!WriteFile(pid_string, pid_file)) {
     // Not a lot we can do if this fails
@@ -414,24 +383,6 @@ void ExecuteDaemon(const string& exe, const std::vector<string>& args_vector,
   CloseHandle(processInfo.hThread);
 
   exit(0);
-}
-
-void BatchWaiterThread(HANDLE java_handle) {
-  WaitForSingleObject(java_handle, INFINITE);
-}
-
-static void MingwSignalHandler(int signum) {
-  // Java process will be terminated because we set the job to terminate if its
-  // handle is closed.
-  //
-  // Note that this is different how interruption is handled on Unix, where the
-  // Java process sets up a signal handler for SIGINT itself. That cannot be
-  // done on Windows without using native code, and it's better to have as
-  // little JNI as possible. The most important part of the cleanup after
-  // termination (killing all child processes) happens automatically on Windows
-  // anyway, since we put the batch Java process in its own job which does not
-  // allow breakaway processes.
-  exit(blaze_exit_code::ExitCode::INTERRUPTED);
 }
 
 // Run the given program in the current working directory,
@@ -449,22 +400,6 @@ void ExecuteProgram(
   // environment variables.
   SetEnvironmentVariable("BAZEL_SH", getenv("BAZEL_SH"));
 
-  HANDLE job = CreateJobObject(NULL, NULL);
-  if (job == NULL) {
-    pdie(255, "Error %u while creating job\n", GetLastError());
-  }
-
-  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info = { 0 };
-  job_info.BasicLimitInformation.LimitFlags =
-      JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-  if (!SetInformationJobObject(
-      job,
-      JobObjectExtendedLimitInformation,
-      &job_info,
-      sizeof(job_info))) {
-    pdie(255, "Error %u while setting up job\n", GetLastError());
-  }
-
   bool success = CreateProcess(
       NULL,           // _In_opt_    LPCTSTR               lpApplicationName,
       //                 _Inout_opt_ LPTSTR                lpCommandLine,
@@ -472,38 +407,17 @@ void ExecuteProgram(
       NULL,           // _In_opt_    LPSECURITY_ATTRIBUTES lpProcessAttributes,
       NULL,           // _In_opt_    LPSECURITY_ATTRIBUTES lpThreadAttributes,
       true,           // _In_        BOOL                  bInheritHandles,
-      //                 _In_        DWORD                 dwCreationFlags,
-      CREATE_NEW_PROCESS_GROUP  // So that Ctrl-Break does not affect it
-          | CREATE_BREAKAWAY_FROM_JOB  // We'll put it in a new job
-          | CREATE_SUSPENDED,  // So that it doesn't start a new job itself
+      0,              // _In_        DWORD                 dwCreationFlags,
       NULL,           // _In_opt_    LPVOID                lpEnvironment,
       NULL,           // _In_opt_    LPCTSTR               lpCurrentDirectory,
       &startupInfo,   // _In_        LPSTARTUPINFO         lpStartupInfo,
       &processInfo);  // _Out_       LPPROCESS_INFORMATION lpProcessInformation
 
   if (!success) {
-    pdie(255, "ExecuteProgram/CreateProcess: error %u executing: %s\n",
-         GetLastError(), cmdline.cmdline);
+    pdie(255, "Error %u executing: %s\n", GetLastError(), cmdline);
   }
-
-  if (!AssignProcessToJobObject(job, processInfo.hProcess)) {
-    pdie(255, "Error %u while assigning process to job\n", GetLastError());
-  }
-
-  // Now that we put the process in a new job object, we can start executing it
-  if (ResumeThread(processInfo.hThread) == -1) {
-    pdie(255, "Error %u while starting Java process\n", GetLastError());
-  }
-
-  // msys doesn't deliver signals while a Win32 call is pending so we need to
-  // do the blocking call in another thread
-  signal(SIGINT, MingwSignalHandler);
-  std::thread batch_waiter_thread([=]() {
-    BatchWaiterThread(processInfo.hProcess);
-  });
-
   // The output base lock is held while waiting
-  batch_waiter_thread.join();
+  WaitForSingleObject(processInfo.hProcess, INFINITE);
   DWORD exit_code;
   GetExitCodeProcess(processInfo.hProcess, &exit_code);
   CloseHandle(processInfo.hProcess);
@@ -514,30 +428,11 @@ void ExecuteProgram(
 string ListSeparator() { return ";"; }
 
 string ConvertPath(const string& path) {
-  // If the path looks like %USERPROFILE%/foo/bar, don't convert.
-  if (path.empty() || path[0] == '%') {
-    return path;
-  }
   char* wpath = static_cast<char*>(cygwin_create_path(
       CCP_POSIX_TO_WIN_A, static_cast<const void*>(path.c_str())));
   string result(wpath);
   free(wpath);
   return result;
-}
-
-// Convert a Unix path list to Windows path list
-string ConvertPathList(const string& path_list) {
-  string w_list = "";
-  int start = 0;
-  int pos;
-  while ((pos = path_list.find(":", start)) != string::npos) {
-    w_list += ConvertPath(path_list.substr(start, pos - start)) + ";";
-    start = pos + 1;
-  }
-  if (start < path_list.size()) {
-    w_list += ConvertPath(path_list.substr(start));
-  }
-  return w_list;
 }
 
 string ConvertPathToPosix(const string& win_path) {
@@ -690,15 +585,15 @@ bool ReadDirectorySymlink(const string &posix_name, string* result) {
     return false;
   }
 
-  vector<char> print_name(reparse_buffer->PrintNameLength * sizeof(WCHAR) + 1);
+  char print_name[MAX_PATH];
   int count = ::WideCharToMultiByte(
       CP_UTF8,
       0,
       reparse_buffer->PathBuffer +
          (reparse_buffer->PrintNameOffset / sizeof(WCHAR)),
       reparse_buffer->PrintNameLength,
-      &print_name[0],
-      print_name.size(),
+      print_name,
+      MAX_PATH,
       NULL,
       NULL);
   if (count == 0) {
@@ -706,7 +601,7 @@ bool ReadDirectorySymlink(const string &posix_name, string* result) {
     *result = "";
     return false;
   } else {
-    *result = ConvertPathToPosix(&print_name[0]);
+    *result = ConvertPathToPosix(print_name);
     return true;
   }
 }
@@ -733,21 +628,9 @@ bool CompareAbsolutePaths(const string& a, const string& b) {
   return a_real == b_real;
 }
 
-bool KillServerProcess(
+void KillServerProcess(
     int pid, const string& output_base, const string& install_base) {
-  HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-  if (process == NULL) {
-    // Cannot find the server process. Can happen if the PID file is stale.
-    return false;
-  }
-
-  bool result = TerminateProcess(process, /*uExitCode*/0);
-  if (!result) {
-    fprintf(stderr, "Cannot terminate server process with PID %d\n", pid);
-  }
-
-  CloseHandle(process);
-  return result;
+  // Not implemented yet. TerminateProcess should work.
 }
 
 }  // namespace blaze

@@ -448,7 +448,6 @@ public class J2ObjcAspect extends NativeAspectClass implements ConfiguredAspectF
           .addAdditionalHdrs(transpiledHeaders)
           .build();
       builder.setCompilationArtifacts(compilationArtifacts);
-      builder.setHasModuleMap();
     }
 
     for (Attribute dependentAttribute : dependentAttributes) {
@@ -463,6 +462,7 @@ public class J2ObjcAspect extends NativeAspectClass implements ConfiguredAspectF
     return builder
         .addUserHeaderSearchPaths(headerSearchPaths)
         .setIntermediateArtifacts(intermediateArtifacts)
+        .setHasModuleMap()
         .build();
   }
 

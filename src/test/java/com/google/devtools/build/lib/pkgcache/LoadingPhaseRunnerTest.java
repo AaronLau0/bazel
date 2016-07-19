@@ -32,7 +32,6 @@ import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.analysis.BuildView;
-import com.google.devtools.build.lib.analysis.ConfiguredRuleClassProvider;
 import com.google.devtools.build.lib.analysis.util.AnalysisMock;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
@@ -52,6 +51,8 @@ import com.google.devtools.build.lib.skyframe.SkyValueDirtinessChecker;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.testutil.ManualClock;
 import com.google.devtools.build.lib.testutil.MoreAsserts;
+import com.google.devtools.build.lib.testutil.TestConstants;
+import com.google.devtools.build.lib.testutil.TestRuleClassProvider;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.util.io.TimestampGranularityMonitor;
 import com.google.devtools.build.lib.vfs.FileSystem;
@@ -70,9 +71,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -592,11 +595,14 @@ public class LoadingPhaseRunnerTest {
     return loadingResult;
   }
 
+  private <K, V> Map.Entry<K, V> entryFor(K key, V value) {
+    return new AbstractMap.SimpleImmutableEntry<>(key, value);
+  }
+
   private static class LoadingPhaseTester {
     private final ManualClock clock = new ManualClock();
     private final Path workspace;
 
-    private final AnalysisMock analysisMock;
     private final SkyframeExecutor skyframeExecutor;
 
     private final List<Path> changes = new ArrayList<>();
@@ -616,35 +622,27 @@ public class LoadingPhaseRunnerTest {
       this.workspace = fs.getPath("/workspace");
       workspace.createDirectory();
       mockToolsConfig = new MockToolsConfig(workspace);
-      analysisMock = AnalysisMock.get();
-      analysisMock.setupMockClient(mockToolsConfig);
+      AnalysisMock.get().setupMockClient(mockToolsConfig);
       FileSystemUtils.deleteTree(workspace.getRelative("base"));
 
-      ConfiguredRuleClassProvider ruleClassProvider = analysisMock.createRuleClassProvider();
-      PackageFactory pkgFactory =
-          analysisMock.getPackageFactoryForTesting().create(ruleClassProvider, fs);
+      PackageFactory pkgFactory = new PackageFactory(TestRuleClassProvider.getRuleClassProvider());
       PackageCacheOptions options = Options.getDefaults(PackageCacheOptions.class);
       storedErrors = new StoredEventHandler();
       BlazeDirectories directories =
-          new BlazeDirectories(
-              fs.getPath("/install"),
-              fs.getPath("/output"),
-              workspace,
-              analysisMock.getProductName());
-      skyframeExecutor =
-          SequencedSkyframeExecutor.create(
-              pkgFactory,
-              directories,
-              null, /* binTools -- not used */
-              null, /* workspaceStatusActionFactory -- not used */
-              ruleClassProvider.getBuildInfoFactories(),
-              ImmutableList.<DiffAwareness.Factory>of(),
-              Predicates.<PathFragment>alwaysFalse(),
-              Preprocessor.Factory.Supplier.NullSupplier.INSTANCE,
-              analysisMock.getSkyFunctions(),
-              ImmutableList.<PrecomputedValue.Injected>of(),
-              ImmutableList.<SkyValueDirtinessChecker>of(),
-              analysisMock.getProductName());
+          new BlazeDirectories(fs.getPath("/install"), fs.getPath("/output"), workspace,
+              TestConstants.PRODUCT_NAME);
+      skyframeExecutor = SequencedSkyframeExecutor.create(pkgFactory,
+          directories,
+          null,  /* binTools -- not used */
+          null,  /* workspaceStatusActionFactory -- not used */
+          TestRuleClassProvider.getRuleClassProvider().getBuildInfoFactories(),
+          ImmutableList.<DiffAwareness.Factory>of(),
+          Predicates.<PathFragment>alwaysFalse(),
+          Preprocessor.Factory.Supplier.NullSupplier.INSTANCE,
+          AnalysisMock.get().getSkyFunctions(),
+          ImmutableList.<PrecomputedValue.Injected>of(),
+          ImmutableList.<SkyValueDirtinessChecker>of(),
+          TestConstants.PRODUCT_NAME);
       PathPackageLocator pkgLocator = PathPackageLocator.create(
           null, options.packagePath, storedErrors, workspace, workspace);
       skyframeExecutor.preparePackageLoading(
@@ -652,7 +650,8 @@ public class LoadingPhaseRunnerTest {
           ConstantRuleVisibility.PRIVATE,
           true,
           7,
-          analysisMock.getDefaultsPackageContent(),
+          TestRuleClassProvider.getRuleClassProvider()
+              .getDefaultsPackageContent(TestConstants.TEST_INVOCATION_POLICY),
           UUID.randomUUID(),
           new TimestampGranularityMonitor(clock));
       loadingPhaseRunner = skyframeExecutor.getLoadingPhaseRunner(
@@ -732,7 +731,9 @@ public class LoadingPhaseRunnerTest {
     }
 
     private void sync() throws InterruptedException {
-      String pkgContents = analysisMock.getDefaultsPackageContent();
+      String pkgContents =
+          TestRuleClassProvider.getRuleClassProvider()
+              .getDefaultsPackageContent(TestConstants.TEST_INVOCATION_POLICY);
       skyframeExecutor.setupDefaultPackage(pkgContents);
       clock.advanceMillis(1);
       ModifiedFileSet.Builder builder = ModifiedFileSet.builder();

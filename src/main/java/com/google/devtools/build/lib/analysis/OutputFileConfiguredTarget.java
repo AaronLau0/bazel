@@ -76,12 +76,6 @@ public class OutputFileConfiguredTarget extends FileConfiguredTarget
         .getBaselineCoverageArtifacts();
   }
 
-  @Override
-  public NestedSet<Artifact> getCoverageSupportFiles() {
-    return getProvider(InstrumentedFilesProvider.class, InstrumentedFilesProviderImpl.EMPTY)
-        .getCoverageSupportFiles();
-  }
-
   /**
    * Returns the corresponding provider from the generating rule, if it is non-null, or {@code
    * defaultValue} otherwise.

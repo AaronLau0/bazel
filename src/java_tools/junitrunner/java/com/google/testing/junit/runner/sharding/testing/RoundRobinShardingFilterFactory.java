@@ -25,10 +25,11 @@ import java.util.Collection;
 /**
  * Creates a {@link RoundRobinShardingFilter} for use in tests.
  */
-public final class RoundRobinShardingFilterFactory implements ShardingFilterFactory {
-  @Override
-  public Filter createFilter(
-      Collection<Description> testDescriptions, int shardIndex, int totalShards) {
-    return new RoundRobinShardingFilter(testDescriptions, shardIndex, totalShards);
-  }
+public class RoundRobinShardingFilterFactory implements ShardingFilterFactory {
+
+    @Override
+    public Filter createFilter(
+        Collection<Description> testDescriptions, int shardIndex, int totalShards) {
+      return new RoundRobinShardingFilter(testDescriptions, shardIndex, totalShards);
+    }
 }

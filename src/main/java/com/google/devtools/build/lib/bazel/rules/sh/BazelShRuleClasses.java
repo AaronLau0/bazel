@@ -27,6 +27,7 @@ import com.google.devtools.build.lib.packages.PredicateWithMessage;
 import com.google.devtools.build.lib.packages.RuleClass;
 import com.google.devtools.build.lib.packages.RuleClass.Builder;
 import com.google.devtools.build.lib.packages.RuleClass.Builder.RuleClassType;
+import com.google.devtools.build.lib.util.FileType;
 import com.google.devtools.build.lib.util.FileTypeSet;
 
 import java.util.Collection;
@@ -41,6 +42,8 @@ public final class BazelShRuleClasses {
 
   static final Collection<String> ALLOWED_RULES_IN_DEPS_WITH_WARNING = ImmutableSet.of(
       "filegroup", "genrule", "sh_binary", "sh_test", "test_suite");
+
+  static final FileTypeSet SH_FILES = FileTypeSet.of(FileType.of(".sh"), FileType.of(".bash"));
 
   /**
    * Common attributes for shell rules.
@@ -60,7 +63,7 @@ public final class BazelShRuleClasses {
           <!-- #END_BLAZE_RULE.ATTRIBUTE --> */
           .add(attr("srcs", LABEL_LIST)
               .mandatory()
-              .allowedFileTypes(FileTypeSet.ANY_FILE))
+              .allowedFileTypes(SH_FILES))
           /* <!-- #BLAZE_RULE($sh_target).ATTRIBUTE(deps) -->
           The list of "library" targets to be aggregated into this target.
           See general comments about <code>deps</code>

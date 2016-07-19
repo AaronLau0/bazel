@@ -104,10 +104,6 @@ public final class InvocationPolicyEnforcer {
     this.invocationPolicy = invocationPolicy;
   }
 
-  public InvocationPolicy getInvocationPolicy() {
-    return invocationPolicy;
-  }
-
   /**
    * Applies this OptionsPolicyEnforcer's policy to the given OptionsParser for all blaze commands.
    *

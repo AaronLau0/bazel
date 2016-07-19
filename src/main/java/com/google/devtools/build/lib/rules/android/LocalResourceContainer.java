@@ -45,7 +45,10 @@ public final class LocalResourceContainer {
       "assets",
       "assets_dir",
       "inline_constants",
-      "exports_manifest"
+      "exports_manifest",
+      "application_id",
+      "version_name",
+      "version_code"
   };
 
   /**

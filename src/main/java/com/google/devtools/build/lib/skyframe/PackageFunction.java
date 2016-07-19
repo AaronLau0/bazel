@@ -211,13 +211,9 @@ public class PackageFunction implements SkyFunction {
     return Pair.of(builder.build(), packageShouldBeInError);
   }
 
-  private static boolean markFileDepsAndPropagateFilesystemExceptions(
-      PackageIdentifier packageIdentifier,
-      Iterable<SkyKey> depKeys,
-      Environment env,
-      boolean packageWasInError)
-      throws InternalInconsistentFilesystemException, FileOutsidePackageRootsException,
-          SymlinkOutsidePackageRootsException {
+  private static boolean markFileDepsAndPropagateInconsistentFilesystemExceptions(
+      PackageIdentifier packageIdentifier, Iterable<SkyKey> depKeys, Environment env,
+      boolean packageWasInError) throws InternalInconsistentFilesystemException {
     Preconditions.checkState(
         Iterables.all(depKeys, SkyFunctions.isSkyFunction(SkyFunctions.FILE)), depKeys);
     boolean packageShouldBeInError = packageWasInError;
@@ -226,8 +222,6 @@ public class PackageFunction implements SkyFunction {
             FileSymlinkException.class, InconsistentFilesystemException.class).entrySet()) {
       try {
         entry.getValue().get();
-      } catch (FileOutsidePackageRootsException | SymlinkOutsidePackageRootsException e) {
-        throw e;
       } catch (IOException e) {
         maybeThrowFilesystemInconsistency(packageIdentifier, e, packageWasInError);
       } catch (FileSymlinkException e) {
@@ -244,13 +238,9 @@ public class PackageFunction implements SkyFunction {
    * These deps have already been marked (see {@link SkyframeHybridGlobber}) but we need to properly
    * handle some errors that legacy package loading can't handle gracefully.
    */
-  private static boolean handleGlobDepsAndPropagateFilesystemExceptions(
-      PackageIdentifier packageIdentifier,
-      Iterable<SkyKey> depKeys,
-      Environment env,
-      boolean packageWasInError)
-      throws InternalInconsistentFilesystemException, FileOutsidePackageRootsException,
-          SymlinkOutsidePackageRootsException {
+  private static boolean handleGlobDepsAndPropagateInconsistentFilesystemExceptions(
+      PackageIdentifier packageIdentifier, Iterable<SkyKey> depKeys, Environment env,
+      boolean packageWasInError) throws InternalInconsistentFilesystemException {
     Preconditions.checkState(
         Iterables.all(depKeys, SkyFunctions.isSkyFunction(SkyFunctions.GLOB)), depKeys);
     boolean packageShouldBeInError = packageWasInError;
@@ -260,8 +250,6 @@ public class PackageFunction implements SkyFunction {
             FileSymlinkException.class, InconsistentFilesystemException.class).entrySet()) {
       try {
         entry.getValue().get();
-      } catch (FileOutsidePackageRootsException | SymlinkOutsidePackageRootsException e) {
-        throw e;
       } catch (IOException | BuildFileNotFoundException e) {
         maybeThrowFilesystemInconsistency(packageIdentifier, e, packageWasInError);
       } catch (FileSymlinkException e) {
@@ -278,19 +266,17 @@ public class PackageFunction implements SkyFunction {
    * Marks dependencies implicitly used by legacy package loading code, after the fact. Note that
    * the given package might already be in error.
    *
-   * <p>Most skyframe exceptions encountered here are ignored, as similar errors should have already
-   * been encountered by legacy package loading (if not, then the filesystem is inconsistent). Some
-   * exceptions that Skyframe is stricter about (disallowed access to files outside package roots)
-   * are propagated.
+   * <p>Any skyframe exceptions encountered here are ignored, as similar errors should have
+   * already been encountered by legacy package loading (if not, then the filesystem is
+   * inconsistent).
    */
-  private static boolean markDependenciesAndPropagateFilesystemExceptions(
+  private static boolean markDependenciesAndPropagateInconsistentFilesystemExceptions(
       Environment env,
       Set<SkyKey> globDepKeys,
       Map<Label, Path> subincludes,
       PackageIdentifier packageIdentifier,
       boolean containsErrors)
-      throws InternalInconsistentFilesystemException, FileOutsidePackageRootsException,
-          SymlinkOutsidePackageRootsException {
+      throws InternalInconsistentFilesystemException {
     boolean packageShouldBeInError = containsErrors;
 
     // TODO(bazel-team): This means that many packages will have to be preprocessed twice. Ouch!
@@ -357,11 +343,11 @@ public class PackageFunction implements SkyFunction {
       }
     }
     packageShouldBeInError |=
-        markFileDepsAndPropagateFilesystemExceptions(
+        markFileDepsAndPropagateInconsistentFilesystemExceptions(
             packageIdentifier, subincludeFileDepKeys, env, containsErrors);
 
     packageShouldBeInError |=
-        handleGlobDepsAndPropagateFilesystemExceptions(
+        handleGlobDepsAndPropagateInconsistentFilesystemExceptions(
             packageIdentifier, globDepKeys, env, containsErrors);
 
     return packageShouldBeInError;
@@ -379,17 +365,9 @@ public class PackageFunction implements SkyFunction {
     SkyKey workspaceKey = ExternalPackageFunction.key(workspacePath);
     PackageValue workspace = null;
     try {
-      // This may throw a NoSuchPackageException if the WORKSPACE file was malformed or had other
-      // problems. Since this function can't add much context, we silently bubble it up.
-      workspace =
-          (PackageValue)
-              env.getValueOrThrow(
-                  workspaceKey,
-                  IOException.class,
-                  FileSymlinkException.class,
-                  InconsistentFilesystemException.class,
-                  EvalException.class,
-                  SkylarkImportFailedException.class);
+      workspace = (PackageValue) env.getValueOrThrow(workspaceKey, IOException.class,
+      FileSymlinkException.class, InconsistentFilesystemException.class,
+      EvalException.class, SkylarkImportFailedException.class);
     } catch (IOException | FileSymlinkException | InconsistentFilesystemException
           | EvalException | SkylarkImportFailedException e) {
       throw new PackageFunctionException(
@@ -405,7 +383,6 @@ public class PackageFunction implements SkyFunction {
     Package pkg = workspace.getPackage();
     Event.replayEventsOn(env.getListener(), pkg.getEvents());
 
-    packageFactory.afterDoneLoadingPackage(pkg);
     return new PackageValue(pkg);
   }
 
@@ -522,7 +499,7 @@ public class PackageFunction implements SkyFunction {
     pkgBuilder.buildPartial();
     try {
       // Since the Skyframe dependencies we request below in
-      // markDependenciesAndPropagateFilesystemExceptions are requested independently of
+      // markDependenciesAndPropagateInconsistentFilesystemExceptions are requested independently of
       // the ones requested here in
       // handleLabelsCrossingSubpackagesAndPropagateInconsistentFilesystemExceptions, we don't
       // bother checking for missing values and instead piggyback on the env.missingValues() call
@@ -540,18 +517,13 @@ public class PackageFunction implements SkyFunction {
     boolean packageShouldBeConsideredInError;
     try {
       packageShouldBeConsideredInError =
-          markDependenciesAndPropagateFilesystemExceptions(
+          markDependenciesAndPropagateInconsistentFilesystemExceptions(
               env, globKeys, subincludes, packageId, pkgBuilder.containsErrors());
     } catch (InternalInconsistentFilesystemException e) {
       packageFunctionCache.invalidate(packageId);
       throw new PackageFunctionException(
           e.toNoSuchPackageException(),
           e.isTransient() ? Transience.TRANSIENT : Transience.PERSISTENT);
-    } catch (FileOutsidePackageRootsException | SymlinkOutsidePackageRootsException e) {
-      packageFunctionCache.invalidate(packageId);
-      throw new PackageFunctionException(
-          new NoSuchPackageException(packageId, "Encountered file outside package roots", e),
-          Transience.PERSISTENT);
     }
     if (env.valuesMissing()) {
       return null;
@@ -567,7 +539,6 @@ public class PackageFunction implements SkyFunction {
     // We know this SkyFunction will not be called again, so we can remove the cache entry.
     packageFunctionCache.invalidate(packageId);
 
-    packageFactory.afterDoneLoadingPackage(pkg);
     return new PackageValue(pkg);
   }
 

@@ -18,7 +18,7 @@ public class TestCustomGreeting {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     Greeter.out = new PrintStream(out);
     Greeter.main();
-    assertEquals("Bye world", new String(out.toByteArray(), StandardCharsets.UTF_8).trim());
+    assertEquals("Bye world\n", new String(out.toByteArray(), StandardCharsets.UTF_8));
   }
 
   @Test
@@ -26,7 +26,7 @@ public class TestCustomGreeting {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     Greeter.out = new PrintStream(out);
     Greeter.main("toto");
-    assertEquals("Bye toto", new String(out.toByteArray(), StandardCharsets.UTF_8).trim());
+    assertEquals("Bye toto\n", new String(out.toByteArray(), StandardCharsets.UTF_8));
   }
 
 }

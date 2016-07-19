@@ -28,7 +28,7 @@ public class NativePosixSystem {
   private NativePosixSystem() {}
 
   static {
-    if (!"0".equals(System.getProperty("io.bazel.EnableJni"))) {
+    if (!"0".equals(System.getProperty("io.bazel.UnixFileSystem"))) {
       UnixJniLoader.loadJni();
     }
   }

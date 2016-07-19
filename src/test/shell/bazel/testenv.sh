@@ -16,54 +16,29 @@
 #
 # Setting up the environment for Bazel integration tests.
 #
+
 [ -z "$TEST_SRCDIR" ] && { echo "TEST_SRCDIR not set!" >&2; exit 1; }
 BAZEL_RUNFILES="$TEST_SRCDIR/io_bazel"
 
-if ! type rlocation &> /dev/null; then
-  function rlocation() {
-    if [[ "$1" = /* ]]; then
-      echo $1
-    else
-      echo "$TEST_SRCDIR/$1"
-    fi
-  }
-  export -f rlocation
-fi
-
 # Load the unit-testing framework
-source "$(rlocation io_bazel/src/test/shell/unittest.bash)" || \
+source "${BAZEL_RUNFILES}/src/test/shell/unittest.bash" || \
   { echo "Failed to source unittest.bash" >&2; exit 1; }
 
 # WORKSPACE file
 workspace_file="${BAZEL_RUNFILES}/WORKSPACE"
 
 # Bazel
-bazel_tree="$(rlocation io_bazel/src/test/shell/bazel/doc-srcs.zip)"
-bazel="$(rlocation io_bazel/src/bazel)"
+bazel_tree="${BAZEL_RUNFILES}/src/test/shell/bazel/doc-srcs.zip"
+bazel="${BAZEL_RUNFILES}/src/bazel"
 bazel_data="${BAZEL_RUNFILES}"
 
-# Windows
-PLATFORM="$(uname -s | tr 'A-Z' 'a-z')"
-function is_windows() {
-  # On windows, the shell test actually running on msys
-  if [[ "${PLATFORM}" =~ msys_nt* ]]; then
-    true
-  else
-    false
-  fi
-}
-
 # Java
-if is_windows; then
-  jdk_dir="$(cygpath -m $(cd $(rlocation local_jdk/bin/java.exe)/../..; pwd))"
-else
-  jdk_dir="${TEST_SRCDIR}/local_jdk"
-fi
-langtools="$(rlocation io_bazel/src/test/shell/bazel/langtools.jar)"
+jdk_dir="${TEST_SRCDIR}/local_jdk"
+langtools="${BAZEL_RUNFILES}/src/test/shell/bazel/langtools.jar"
 
 # Tools directory location
-tools_dir="$(dirname $(rlocation io_bazel/tools/BUILD))"
-langtools_dir="$(dirname $(rlocation io_bazel/third_party/java/jdk/langtools/BUILD))"
+tools_dir="${BAZEL_RUNFILES}/tools"
+langtools_dir="${BAZEL_RUNFILES}/third_party/java/jdk/langtools"
 EXTRA_BAZELRC="build --ios_sdk_version=8.4"
 
 # Java tooling
@@ -76,7 +51,15 @@ ijar_path="${BAZEL_RUNFILES}/third_party/ijar/ijar"
 
 # Sandbox tools
 process_wrapper="${BAZEL_RUNFILES}/src/main/tools/process-wrapper"
-linux_sandbox="${BAZEL_RUNFILES}/src/main/tools/linux-sandbox"
+namespace_sandbox="${BAZEL_RUNFILES}/src/main/tools/namespace-sandbox"
+
+# Android tooling
+aargenerator_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/AarGeneratorAction_deploy.jar"
+androidresourceprocessor_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/AndroidResourceProcessingAction_deploy.jar"
+resourceshrinker_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/ResourceShrinkerAction_deploy.jar"
+dexmapper_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/ziputils/mapper_deploy.jar"
+dexreducer_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/ziputils/reducer_deploy.jar"
+incrementaldeployment_path="${BAZEL_RUNFILES}/src/tools/android/java/com/google/devtools/build/android/incrementaldeployment"
 
 # iOS and Objective-C tooling
 iossim_path="${BAZEL_RUNFILES}/third_party/iossim/iossim"
@@ -97,6 +80,7 @@ testdata_path=${BAZEL_RUNFILES}/src/test/shell/bazel/testdata
 python_server="${BAZEL_RUNFILES}/src/test/shell/bazel/testing_server.py"
 
 # Third-party
+PLATFORM="$(uname -s | tr 'A-Z' 'a-z')"
 MACHINE_TYPE="$(uname -m)"
 MACHINE_IS_64BIT='no'
 if [ "${MACHINE_TYPE}" = 'amd64' -o "${MACHINE_TYPE}" = 'x86_64' ]; then
@@ -172,7 +156,7 @@ function is_tools_directory() {
 
 # Copy the examples of the base workspace
 function copy_examples() {
-  EXAMPLE="$(cd $(dirname $(rlocation io_bazel/examples/cpp/BUILD))/..; pwd)"
+  EXAMPLE="$BAZEL_RUNFILES/examples"
   cp -RL ${EXAMPLE} .
   chmod -R +w .
 }

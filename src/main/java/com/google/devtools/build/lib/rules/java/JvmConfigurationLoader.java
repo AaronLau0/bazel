@@ -52,10 +52,16 @@ import javax.annotation.Nullable;
  * <p>The loader also supports legacy mode, where the JVM can be defined with an abolute path.
  */
 public final class JvmConfigurationLoader implements ConfigurationFragmentFactory {
+  private final boolean forceLegacy;
   private final JavaCpuSupplier cpuSupplier;
 
-  public JvmConfigurationLoader(JavaCpuSupplier cpuSupplier) {
+  public JvmConfigurationLoader(boolean forceLegacy, JavaCpuSupplier cpuSupplier) {
+    this.forceLegacy = forceLegacy;
     this.cpuSupplier = cpuSupplier;
+  }
+
+  public JvmConfigurationLoader(JavaCpuSupplier cpuSupplier) {
+    this(/*forceLegacy=*/ false, cpuSupplier);
   }
 
   @Override
@@ -72,10 +78,12 @@ public final class JvmConfigurationLoader implements ConfigurationFragmentFactor
       return null;
     }
 
-    try {
-      return createDefault(env, javaHome, cpu);
-    } catch (LabelSyntaxException e) {
-      // Try again with legacy
+    if (!forceLegacy) {
+      try {
+        return createDefault(env, javaHome, cpu);
+      } catch (LabelSyntaxException e) {
+        // Try again with legacy
+      }
     }
 
     return createLegacy(javaHome);

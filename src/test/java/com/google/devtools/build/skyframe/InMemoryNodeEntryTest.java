@@ -189,9 +189,6 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertFalse(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
     assertThat(entry.getTemporaryDirectDeps()).isEmpty();
     SkyKey parent = key("parent");
@@ -221,9 +218,6 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertTrue(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
     SkyKey parent = key("parent");
     entry.addReverseDepAndCheckIfDone(parent);
@@ -249,13 +243,11 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertFalse(entry.isChanged());
     assertFalse(entry.isDone());
+    assertTrue(entry.isReady());
     entry.markDirty(/*isChanged=*/true);
     assertTrue(entry.isDirty());
     assertTrue(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
   }
 
@@ -273,13 +265,11 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertTrue(entry.isChanged());
     assertFalse(entry.isDone());
+    assertTrue(entry.isReady());
     entry.markDirty(/*isChanged=*/false);
     assertTrue(entry.isDirty());
     assertTrue(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
   }
 
@@ -377,9 +367,6 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertFalse(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
     SkyKey parent = key("parent");
     entry.addReverseDepAndCheckIfDone(parent);
@@ -448,9 +435,6 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertFalse(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
     SkyKey parent = key("parent");
     entry.addReverseDepAndCheckIfDone(parent);
@@ -489,9 +473,6 @@ public class InMemoryNodeEntryTest {
     assertTrue(entry.isDirty());
     assertFalse(entry.isChanged());
     assertFalse(entry.isDone());
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     assertTrue(entry.isReady());
     entry.addReverseDepAndCheckIfDone(null);
     assertEquals(NodeEntry.DirtyState.CHECK_DEPENDENCIES, entry.getDirtyState());
@@ -662,9 +643,6 @@ public class InMemoryNodeEntryTest {
     IntVersion version = IntVersion.of(0);
     IntegerValue originalValue = new IntegerValue(42);
     SkyKey originalChild = key("child");
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     addTemporaryDirectDep(entry, originalChild);
     entry.signalDep();
     entry.setValue(originalValue, version);
@@ -708,9 +686,6 @@ public class InMemoryNodeEntryTest {
         ImmutableSet.of(key("2A"), key("2B")),
         ImmutableSet.of(key("3A"), key("3B"), key("3C")),
         ImmutableSet.of(key("4A"), key("4B"), key("4C"), key("4D")));
-    assertThatNodeEntry(entry)
-        .addReverseDepAndCheckIfDone(null)
-        .isEqualTo(DependencyState.NEEDS_SCHEDULING);
     for (Set<SkyKey> depGroup : groupedDirectDeps) {
       entry.addTemporaryDirectDeps(GroupedListHelper.create(depGroup));
       for (int i = 0; i < depGroup.size(); i++) {

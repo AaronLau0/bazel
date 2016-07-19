@@ -52,8 +52,9 @@ public class FileOutErr extends OutErr {
   }
 
   /**
-   * Creates a new FileOutErr that writes its input to the file specified by output. Both
-   * stdout/stderr will be copied into the single file.
+   * Creates a new FileOutErr that writes its input
+   * to the file specified by output. Both stdout/stderr will
+   * be copied into the single file.
    *
    * @param output The file for the both stdout and stderr of this outErr.
    */
@@ -105,26 +106,30 @@ public class FileOutErr extends OutErr {
   }
 
   /**
-   * Returns the {@link Path} this OutErr uses to buffer stdout
+   * Returns the file this OutErr uses to buffer stdout
    *
-   * <p>The user must ensure that no other process is writing to the files at time of creation.
+   * The user must ensure that no other process is writing to the
+   * files at time of creation.
    *
    * @return the path object with the contents of stdout
    */
-  public Path getOutputPath() {
+  public Path getOutputFile() {
     return getFileOutputStream().getFile();
   }
 
   /**
-   * Returns the {@link Path} this OutErr uses to buffer stderr.
+   * Returns the file this OutErr uses to buffer stderr.
    *
    * @return the path object with the contents of stderr
    */
-  public Path getErrorPath() {
+  public Path getErrorFile() {
     return getFileErrorStream().getFile();
   }
 
-  /** Interprets the captured out content as an {@code ISO-8859-1} encoded string. */
+  /**
+   * Interprets the captured out content as an {@code ISO-8859-1} encoded
+   * string.
+   */
   public String outAsLatin1() {
     return getFileOutputStream().getRecordedOutput();
   }

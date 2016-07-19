@@ -45,7 +45,6 @@ import com.google.devtools.build.lib.query2.engine.QueryUtil.AbstractUniquifier;
 import com.google.devtools.build.lib.query2.engine.QueryUtil.AggregateAllCallback;
 import com.google.devtools.build.lib.query2.engine.SkyframeRestartQueryException;
 import com.google.devtools.build.lib.query2.engine.Uniquifier;
-import com.google.devtools.build.lib.query2.engine.VariableContext;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.vfs.PathFragment;
 
@@ -106,13 +105,6 @@ public class BlazeQueryEnvironment extends AbstractBlazeQueryEnvironment<Target>
     this.loadingPhaseThreads = loadingPhaseThreads;
     this.labelVisitor = new LabelVisitor(packageProvider, dependencyFilter);
   }
-
-  /**
-   * Calling close is optional because {@link BlazeQueryEnvironment} has no resources that need
-   * manual management.
-   */
-  @Override
-  public void close() {}
 
   @Override
   public DigraphQueryEvalResult<Target> evaluateQuery(QueryExpression expr,
@@ -292,10 +284,10 @@ public class BlazeQueryEnvironment extends AbstractBlazeQueryEnvironment<Target>
   }
 
   @Override
-  public void eval(QueryExpression expr, VariableContext<Target> context, Callback<Target> callback)
+  public void eval(QueryExpression expr, Callback<Target> callback)
       throws QueryException, InterruptedException {
     AggregateAllCallback<Target> aggregator = new AggregateAllCallback<>();
-    expr.eval(this, context, aggregator);
+    expr.eval(this, aggregator);
     callback.process(aggregator.getResult());
   }
 

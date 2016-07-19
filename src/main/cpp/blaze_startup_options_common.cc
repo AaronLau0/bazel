@@ -24,10 +24,6 @@
 #include "src/main/cpp/util/numbers.h"
 #include "src/main/cpp/util/strings.h"
 
-#ifndef PRODUCT_NAME
-#define PRODUCT_NAME "Bazel"
-#endif
-
 namespace blaze {
 
 void BlazeStartupOptions::Init() {
@@ -38,11 +34,10 @@ void BlazeStartupOptions::Init() {
     output_root = GetOutputRoot();
   }
 
-  product_name = PRODUCT_NAME;
-  string product_name_lower = PRODUCT_NAME;
-  blaze_util::ToLower(&product_name_lower);
+  string product = GetProductName();
+  blaze_util::ToLower(&product);
   output_user_root = blaze_util::JoinPath(
-      output_root, "_" + product_name_lower + "_" + GetUserName());
+      output_root, "_" + product + "_" + GetUserName());
   deep_execroot = true;
   block_for_lock = true;
   host_jvm_debug = false;
@@ -52,8 +47,8 @@ void BlazeStartupOptions::Init() {
   allow_configurable_attributes = false;
   fatal_event_bus_exceptions = false;
   io_nice_level = -1;
-  // 3 hours (but only 15 seconds if used within a test)
-  max_idle_secs = testing ? 15 : (3 * 3600);
+  // 3 hours (but only 5 seconds if used within a test)
+  max_idle_secs = testing ? 5 : (3 * 3600);
   oom_more_eagerly_threshold = 100;
   command_port = -1;
   oom_more_eagerly = false;
@@ -72,7 +67,6 @@ void BlazeStartupOptions::Copy(
     const BlazeStartupOptions &rhs, BlazeStartupOptions *lhs) {
   assert(lhs);
 
-  lhs->product_name = rhs.product_name;
   lhs->output_base = rhs.output_base;
   lhs->install_base = rhs.install_base;
   lhs->output_root = rhs.output_root;
@@ -89,7 +83,6 @@ void BlazeStartupOptions::Copy(
   lhs->max_idle_secs = rhs.max_idle_secs;
   lhs->command_port = rhs.command_port;
   lhs->oom_more_eagerly = rhs.oom_more_eagerly;
-  lhs->oom_more_eagerly_threshold = rhs.oom_more_eagerly_threshold;
   lhs->watchfs = rhs.watchfs;
   lhs->allow_configurable_attributes = rhs.allow_configurable_attributes;
   lhs->fatal_event_bus_exceptions = rhs.fatal_event_bus_exceptions;
@@ -272,7 +265,7 @@ blaze_exit_code::ExitCode BlazeStartupOptions::ProcessArg(
           error,
           "Unknown %s startup option: '%s'.\n"
           "  For more info, run '%s help startup_options'.",
-          product_name.c_str(), arg, product_name.c_str());
+          GetProductName().c_str(), arg, GetProductName().c_str());
       return blaze_exit_code::BAD_ARGV;
     }
   }

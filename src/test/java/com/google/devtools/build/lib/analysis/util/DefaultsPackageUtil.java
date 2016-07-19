@@ -19,6 +19,7 @@ import com.google.devtools.build.lib.analysis.config.BuildOptions;
 import com.google.devtools.build.lib.analysis.config.DefaultsPackage;
 import com.google.devtools.build.lib.analysis.config.FragmentOptions;
 import com.google.devtools.build.lib.flags.InvocationPolicyEnforcer;
+import com.google.devtools.build.lib.testutil.TestConstants;
 import com.google.devtools.common.options.OptionsBase;
 import com.google.devtools.common.options.OptionsParser;
 import com.google.devtools.common.options.OptionsParsingException;
@@ -35,7 +36,8 @@ public class DefaultsPackageUtil {
             BuildConfiguration.Options.class, optionsClass));
     parser.parse(options);
 
-    InvocationPolicyEnforcer enforcer = AnalysisMock.get().getInvocationPolicyEnforcer();
+    InvocationPolicyEnforcer enforcer =
+        new InvocationPolicyEnforcer(TestConstants.TEST_INVOCATION_POLICY);
     enforcer.enforce(parser);
 
     return DefaultsPackage.getDefaultsPackageContent(BuildOptions.of(

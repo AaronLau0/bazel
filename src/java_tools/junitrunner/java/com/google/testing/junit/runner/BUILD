@@ -21,6 +21,7 @@ java_library(
         "//third_party:dagger",
         "//third_party:guava",
         "//third_party:joda_time",
+        "//third_party:jsr305",
         "//third_party:junit4",
     ],
 )

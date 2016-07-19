@@ -26,5 +26,8 @@ cc_test(
 
 filegroup(
     name = "srcs",
-    srcs = glob(["**"]),
+    srcs = ["BUILD"] + glob([
+        "**/*.cc",
+        "**/*.h",
+    ]),
 )

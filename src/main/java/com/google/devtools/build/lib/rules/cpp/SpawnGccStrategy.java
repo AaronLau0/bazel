@@ -15,6 +15,7 @@
 package com.google.devtools.build.lib.rules.cpp;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.devtools.build.lib.actions.ActionExecutionContext;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.BaseSpawn;
@@ -58,7 +59,7 @@ public class SpawnGccStrategy implements CppCompileActionContext {
         new BaseSpawn(
             action.getArgv(),
             action.getEnvironment(),
-            action.getExecutionInfo(),
+            ImmutableMap.<String, String>of(),
             action,
             estimateResourceConsumption(action));
     spawnActionContext.exec(spawn, actionExecutionContext);

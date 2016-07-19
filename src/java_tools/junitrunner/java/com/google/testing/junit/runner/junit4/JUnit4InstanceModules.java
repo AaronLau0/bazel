@@ -73,12 +73,12 @@ public final class JUnit4InstanceModules {
     @Provides
     @Singleton
     JUnit4Options options() {
-      return JUnit4Options.parse(System.getenv(), args);
+      return JUnit4Options.parse(System.getenv(), ImmutableList.copyOf(args));
     }
 
     @Provides
     @Singleton
-    static JUnit4Config config(JUnit4Options options) {
+    JUnit4Config config(JUnit4Options options) {
       return new JUnit4Config(
           options.getTestIncludeFilter(), options.getTestExcludeFilter(), Optional.<Path>absent());
     }

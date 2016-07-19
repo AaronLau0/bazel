@@ -14,7 +14,6 @@
 
 package com.google.devtools.build.lib.analysis.constraints;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.FileProvider;
 import com.google.devtools.build.lib.analysis.FilesToRunProvider;
@@ -24,7 +23,6 @@ import com.google.devtools.build.lib.analysis.RunfilesProvider;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.packages.EnvironmentGroup;
 import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
-import com.google.devtools.build.lib.packages.Target;
 import com.google.devtools.build.lib.rules.RuleConfiguredTargetFactory;
 
 /**
@@ -49,8 +47,7 @@ public class Environment implements RuleConfiguredTargetFactory {
 
     EnvironmentCollection env = new EnvironmentCollection.Builder().put(group, label).build();
     return new RuleConfiguredTargetBuilder(ruleContext)
-        .addProvider(SupportedEnvironmentsProvider.class,
-            new SupportedEnvironments(env, env, ImmutableMap.<Label, Target>of()))
+        .addProvider(SupportedEnvironmentsProvider.class, new SupportedEnvironments(env, env))
         .addProvider(RunfilesProvider.class, RunfilesProvider.EMPTY)
         .add(FileProvider.class, FileProvider.EMPTY)
         .add(FilesToRunProvider.class, FilesToRunProvider.EMPTY)

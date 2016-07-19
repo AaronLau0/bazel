@@ -13,8 +13,8 @@
 // limitations under the License.
 package com.google.devtools.build.lib.syntax;
 
-import com.google.devtools.build.lib.skylarkinterface.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
+import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature.Param;
 import com.google.devtools.build.lib.syntax.BuiltinFunction.ExtraArgKind;
 import com.google.devtools.build.lib.util.Preconditions;
 
@@ -63,30 +63,39 @@ public class SkylarkSignatureProcessor {
     Iterator<Object> defaultValuesIterator = defaultValues == null
         ? null : defaultValues.iterator();
     try {
-      boolean named = false;
-      for (Param param : annotation.parameters()) {
-        boolean mandatory = param.defaultValue() != null && param.defaultValue().isEmpty();
-        Object defaultValue = mandatory ? null : getDefaultValue(param, defaultValuesIterator);
-        if (param.named() && !param.positional() && !named) {
-          named = true;
-          @Nullable Param starParam = null;
-          if (!annotation.extraPositionals().name().isEmpty()) {
-            starParam = annotation.extraPositionals();
-          }
-          paramList.add(getParameter(name, starParam, enforcedTypes, doc, documented,
-                /*mandatory=*/false, /*star=*/true, /*starStar=*/false, /*defaultValue=*/null));
-        }
+      for (Param param : annotation.mandatoryPositionals()) {
         paramList.add(getParameter(name, param, enforcedTypes, doc, documented,
-                mandatory, /*star=*/false, /*starStar=*/false, defaultValue));
+                /*mandatory=*/true, /*star=*/false, /*starStar=*/false, /*defaultValue=*/null));
       }
-      if (!annotation.extraPositionals().name().isEmpty() && !named) {
-        paramList.add(getParameter(name, annotation.extraPositionals(), enforcedTypes, doc,
-            documented, /*mandatory=*/false, /*star=*/true, /*starStar=*/false,
-            /*defaultValue=*/null));
+      for (Param param : annotation.optionalPositionals()) {
+        paramList.add(getParameter(name, param, enforcedTypes, doc, documented,
+                /*mandatory=*/false, /*star=*/false, /*starStar=*/false,
+                /*defaultValue=*/getDefaultValue(param, defaultValuesIterator)));
       }
-      if (!annotation.extraKeywords().name().isEmpty()) {
+      if (annotation.extraPositionals().length > 0
+          || annotation.optionalNamedOnly().length > 0
+          || annotation.mandatoryNamedOnly().length > 0) {
+        @Nullable Param starParam = null;
+        if (annotation.extraPositionals().length > 0) {
+          Preconditions.checkArgument(annotation.extraPositionals().length == 1);
+          starParam = annotation.extraPositionals()[0];
+        }
+        paramList.add(getParameter(name, starParam, enforcedTypes, doc, documented,
+                /*mandatory=*/false, /*star=*/true, /*starStar=*/false, /*defaultValue=*/null));
+      }
+      for (Param param : annotation.mandatoryNamedOnly()) {
+        paramList.add(getParameter(name, param, enforcedTypes, doc, documented,
+                /*mandatory=*/true, /*star=*/false, /*starStar=*/false, /*defaultValue=*/null));
+      }
+      for (Param param : annotation.optionalNamedOnly()) {
+        paramList.add(getParameter(name, param, enforcedTypes, doc, documented,
+                /*mandatory=*/false, /*star=*/false, /*starStar=*/false,
+                /*defaultValue=*/getDefaultValue(param, defaultValuesIterator)));
+      }
+      if (annotation.extraKeywords().length > 0) {
+        Preconditions.checkArgument(annotation.extraKeywords().length == 1);
         paramList.add(
-            getParameter(name, annotation.extraKeywords(), enforcedTypes, doc, documented,
+            getParameter(name, annotation.extraKeywords()[0], enforcedTypes, doc, documented,
                 /*mandatory=*/false, /*star=*/false, /*starStar=*/true, /*defaultValue=*/null));
       }
       FunctionSignature.WithValues<Object, SkylarkType> signature =

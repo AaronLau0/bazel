@@ -19,19 +19,21 @@ load(":skylarktests/testing.bzl",
      "end_test",
      "fail_test",
      "assert_equals",
-     "assert_contains_all",
      "assert_true")
 
 
-load(":intellij_info.bzl", "intellij_info_test_aspect")
+load(":intellij_info.bzl", "intellij_info_aspect")
 
 def test(impl):
     return rule(impl,
         attrs = {
-            'targets' : attr.label_list(aspects = [intellij_info_test_aspect]),
+            'targets' : attr.label_list(aspects = [intellij_info_aspect]),
         },
         test = True,
     )
+
+def infos_to_dict(infos):
+    return  { i.label : i for i in infos }
 
 def _source_paths(env, artifact_locations):
     for f in artifact_locations:
@@ -63,8 +65,8 @@ def _jar_expected_string(base, jar, interface_jar, source_jar):
 
 def _test_simple_java_library(ctx):
     env = start_test(ctx)
-    infos = ctx.attr.targets[0].intellij_infos
-    info = infos[str(ctx.label.relative(":simple1"))]
+    infos = infos_to_dict(ctx.attr.targets[0].ide_infos)
+    info = infos.get(str(ctx.label.relative(":simple1")))
     if not info:
         fail_test(env, "info not found")
         end_test(ctx, env)
@@ -78,6 +80,8 @@ def _test_simple_java_library(ctx):
                 info.build_file_artifact_location.is_source)
 
     assert_equals(env, "java_library", info.kind_string)
+
+    assert_equals(env, [], info.dependencies)
 
     assert_equals(env,
             [ctx.label.package + "/skylarktests/testfiles/Simple1.java"],
@@ -105,15 +109,15 @@ def test_simple_java_library():
 ################################################
 def _test_java_library_with_dependencies(ctx):
     env = start_test(ctx)
-    infos = ctx.attr.targets[0].intellij_infos
-    info_simple = infos[str(ctx.label.relative(":simple2"))]
-    info_complex = infos[str(ctx.label.relative(":complex2"))]
+    infos = infos_to_dict(ctx.attr.targets[0].ide_infos)
+    info_simple = infos.get(str(ctx.label.relative(":simple2")))
+    info_complex = infos.get(str(ctx.label.relative(":complex2")))
     assert_equals(env,
             [ctx.label.package + "/skylarktests/testfiles/Complex2.java"],
             _source_paths(env, info_complex.java_rule_ide_info.sources))
-    assert_contains_all(env,
-                        [str(ctx.label.relative(":simple2"))],
-                        info_complex.dependencies)
+    assert_equals(env,
+            [str(ctx.label.relative(":simple2"))],
+            info_complex.dependencies)
     end_test(env)
 
 test_java_library_with_dependencies_rule_test = test(_test_java_library_with_dependencies)
@@ -128,10 +132,6 @@ def test_java_library_with_dependencies():
     )
 
 def skylark_tests():
-  test_simple_java_library()
-  test_java_library_with_dependencies()
-
-  native.test_suite(name = "skylark_tests",
-                    tests = [":test_simple_java_library",
-                             ":test_java_library_with_dependencies"])
+    test_simple_java_library()
+    test_java_library_with_dependencies()
 

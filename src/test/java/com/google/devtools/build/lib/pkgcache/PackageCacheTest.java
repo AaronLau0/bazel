@@ -36,6 +36,7 @@ import com.google.devtools.build.lib.packages.BuildFileContainsErrorsException;
 import com.google.devtools.build.lib.packages.NoSuchPackageException;
 import com.google.devtools.build.lib.packages.NoSuchTargetException;
 import com.google.devtools.build.lib.packages.Package;
+import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.packages.Preprocessor;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
@@ -48,6 +49,8 @@ import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.syntax.BuildFileAST;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
 import com.google.devtools.build.lib.testutil.MoreAsserts;
+import com.google.devtools.build.lib.testutil.TestConstants;
+import com.google.devtools.build.lib.testutil.TestRuleClassProvider;
 import com.google.devtools.build.lib.util.BlazeClock;
 import com.google.devtools.build.lib.util.io.TimestampGranularityMonitor;
 import com.google.devtools.build.lib.vfs.ModifiedFileSet;
@@ -73,21 +76,17 @@ import java.util.UUID;
 @RunWith(JUnit4.class)
 public class PackageCacheTest extends FoundationTestCase {
 
-  private AnalysisMock analysisMock;
   private ConfiguredRuleClassProvider ruleClassProvider;
   private SkyframeExecutor skyframeExecutor;
 
   @Before
   public final void initializeSkyframeExecutor() throws Exception {
-    analysisMock = AnalysisMock.get();
-    ruleClassProvider = analysisMock.createRuleClassProvider();
-    BlazeDirectories directories =
-        new BlazeDirectories(outputBase, outputBase, rootDirectory, analysisMock.getProductName());
+    ruleClassProvider = TestRuleClassProvider.getRuleClassProvider();
+    BlazeDirectories directories = new BlazeDirectories(outputBase, outputBase, rootDirectory,
+        TestConstants.PRODUCT_NAME);
     skyframeExecutor =
         SequencedSkyframeExecutor.create(
-            analysisMock
-                .getPackageFactoryForTesting()
-                .create(ruleClassProvider, scratch.getFileSystem()),
+            new PackageFactory(ruleClassProvider),
             directories,
             null, /* BinTools */
             null, /* workspaceStatusActionFactory */
@@ -98,7 +97,7 @@ public class PackageCacheTest extends FoundationTestCase {
             AnalysisMock.get().getSkyFunctions(),
             ImmutableList.<PrecomputedValue.Injected>of(),
             ImmutableList.<SkyValueDirtinessChecker>of(),
-            analysisMock.getProductName());
+            TestConstants.PRODUCT_NAME);
     setUpSkyframe(parsePackageCacheOptions());
   }
 
@@ -110,7 +109,7 @@ public class PackageCacheTest extends FoundationTestCase {
         packageCacheOptions.defaultVisibility,
         true,
         7,
-        analysisMock.getDefaultsPackageContent(),
+        ruleClassProvider.getDefaultsPackageContent(TestConstants.TEST_INVOCATION_POLICY),
         UUID.randomUUID(),
         new TimestampGranularityMonitor(BlazeClock.instance()));
     skyframeExecutor.setDeletedPackages(ImmutableSet.copyOf(packageCacheOptions.getDeletedPackages()));
@@ -121,7 +120,8 @@ public class PackageCacheTest extends FoundationTestCase {
     parser.parse(new String[] { "--default_visibility=public" });
     parser.parse(options);
 
-    InvocationPolicyEnforcer optionsPolicyEnforcer = analysisMock.getInvocationPolicyEnforcer();
+    InvocationPolicyEnforcer optionsPolicyEnforcer =
+        new InvocationPolicyEnforcer(TestConstants.TEST_INVOCATION_POLICY);
     try {
       optionsPolicyEnforcer.enforce(parser);
     } catch (OptionsParsingException e) {

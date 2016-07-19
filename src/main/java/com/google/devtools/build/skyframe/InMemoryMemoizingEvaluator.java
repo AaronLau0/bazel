@@ -284,8 +284,9 @@ public final class InMemoryMemoizingEvaluator implements MemoizingEvaluator {
   }
 
   @Override
-  public void injectGraphTransformerForTesting(GraphTransformerForTesting transformer) {
-    this.graph = transformer.transform(this.graph);
+  public void injectGraphTransformerForTesting(
+      Function<ThinNodeQueryableGraph, ProcessableGraph> transformer) {
+    this.graph = (InMemoryGraph) transformer.apply(this.graph);
   }
 
   public ProcessableGraph getGraphForTesting() {
@@ -359,7 +360,7 @@ public final class InMemoryMemoizingEvaluator implements MemoizingEvaluator {
       new EvaluatorSupplier() {
         @Override
         public MemoizingEvaluator create(
-            ImmutableMap<SkyFunctionName, ? extends SkyFunction> skyFunctions,
+            Map<SkyFunctionName, ? extends SkyFunction> skyFunctions,
             Differencer differencer,
             @Nullable EvaluationProgressReceiver invalidationReceiver,
             EmittedEventState emittedEventState,

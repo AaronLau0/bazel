@@ -15,7 +15,7 @@
 package com.google.devtools.build.lib.unix;
 
 import com.google.devtools.build.lib.UnixJniLoader;
-import com.google.devtools.build.lib.util.OS;
+
 
 /**
  * A subsclass of FileStatus which contains an errno.
@@ -81,9 +81,7 @@ public class ErrnoFileStatus extends FileStatus {
 
     public static ErrnoConstants getErrnoConstants() {
       ErrnoConstants constants = new ErrnoConstants();
-      if (OS.getCurrent() != OS.WINDOWS) {
-        constants.initErrnoConstants();
-      }
+      constants.initErrnoConstants();
       return constants;
     }
 

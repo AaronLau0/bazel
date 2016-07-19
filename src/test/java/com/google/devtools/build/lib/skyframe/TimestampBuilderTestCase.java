@@ -19,7 +19,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Range;
 import com.google.common.collect.Sets;
@@ -27,8 +26,6 @@ import com.google.common.eventbus.EventBus;
 import com.google.devtools.build.lib.actions.Action;
 import com.google.devtools.build.lib.actions.ActionAnalysisMetadata;
 import com.google.devtools.build.lib.actions.ActionCacheChecker;
-import com.google.devtools.build.lib.actions.ActionExecutionContext;
-import com.google.devtools.build.lib.actions.ActionExecutionException;
 import com.google.devtools.build.lib.actions.ActionExecutionStatusReporter;
 import com.google.devtools.build.lib.actions.ActionLogBufferPathGenerator;
 import com.google.devtools.build.lib.actions.Artifact;
@@ -43,10 +40,10 @@ import com.google.devtools.build.lib.actions.util.DummyExecutor;
 import com.google.devtools.build.lib.actions.util.TestAction;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
-import com.google.devtools.build.lib.analysis.TopLevelArtifactContext;
 import com.google.devtools.build.lib.buildtool.SkyframeBuilder;
 import com.google.devtools.build.lib.events.Reporter;
 import com.google.devtools.build.lib.events.StoredEventHandler;
+import com.google.devtools.build.lib.packages.PackageFactory;
 import com.google.devtools.build.lib.pkgcache.PathPackageLocator;
 import com.google.devtools.build.lib.testutil.FoundationTestCase;
 import com.google.devtools.build.lib.testutil.TestConstants;
@@ -58,7 +55,6 @@ import com.google.devtools.build.lib.util.Clock;
 import com.google.devtools.build.lib.util.Preconditions;
 import com.google.devtools.build.lib.util.io.TimestampGranularityMonitor;
 import com.google.devtools.build.lib.vfs.FileSystem;
-import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.skyframe.CycleInfo;
@@ -69,14 +65,12 @@ import com.google.devtools.build.skyframe.InMemoryMemoizingEvaluator;
 import com.google.devtools.build.skyframe.RecordingDifferencer;
 import com.google.devtools.build.skyframe.SequentialBuildDriver;
 import com.google.devtools.build.skyframe.SkyFunction;
-import com.google.devtools.build.skyframe.SkyFunctionException;
 import com.google.devtools.build.skyframe.SkyFunctionName;
 import com.google.devtools.build.skyframe.SkyKey;
 import com.google.devtools.build.skyframe.SkyValue;
 
 import org.junit.Before;
 
-import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -105,7 +99,7 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
   protected Clock clock = BlazeClock.instance();
   protected TimestampGranularityMonitor tsgm;
   protected RecordingDifferencer differencer = new RecordingDifferencer();
-  private Set<ActionAnalysisMetadata> actions;
+  private Set<Action> actions;
 
   protected AtomicReference<EventBus> eventBusRef = new AtomicReference<>();
 
@@ -115,14 +109,13 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
     tsgm = new TimestampGranularityMonitor(clock);
     ResourceManager.instance().setAvailableResources(ResourceSet.createWithRamCpuIo(100, 1, 1));
     actions = new HashSet<>();
-    actionTemplateExpansionFunction = new ActionTemplateExpansionFunction();
   }
 
   protected void clearActions() {
     actions.clear();
   }
 
-  protected <T extends ActionAnalysisMetadata> T registerAction(T action) {
+  protected <T extends Action> T registerAction(T action) {
     actions.add(action);
     return action;
   }
@@ -186,13 +179,9 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
                     SkyFunctions.WORKSPACE_FILE,
                     new WorkspaceFileFunction(
                         TestRuleClassProvider.getRuleClassProvider(),
-                        TestConstants.PACKAGE_FACTORY_FACTORY_FOR_TESTING.create(
-                            TestRuleClassProvider.getRuleClassProvider(),
-                            scratch.getFileSystem()),
+                        new PackageFactory(TestRuleClassProvider.getRuleClassProvider()),
                         directories))
                 .put(SkyFunctions.EXTERNAL_PACKAGE, new ExternalPackageFunction())
-                .put(SkyFunctions.ACTION_TEMPLATE_EXPANSION,
-                     new DelegatingActionTemplateExpansionFunction())
                 .build(),
             differencer,
             evaluationProgressReceiver);
@@ -205,7 +194,7 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
         if (evaluator.getExistingValueForTesting(OWNER_KEY) == null) {
           differencer.inject(ImmutableMap.of(
               OWNER_KEY,
-              new ActionLookupValue(ImmutableList.copyOf(actions))));
+              new ActionLookupValue(ImmutableList.<ActionAnalysisMetadata>copyOf(actions))));
         }
       }
 
@@ -220,8 +209,7 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
           Executor executor,
           Set<ConfiguredTarget> builtTargets,
           boolean explain,
-          Range<Long> lastExecutionTimeRange,
-          TopLevelArtifactContext topLevelArtifactContext)
+          Range<Long> lastExecutionTimeRange)
           throws BuildFailedException, AbruptExitException, InterruptedException,
               TestExecException {
         skyframeActionExecutor.prepareForExecution(
@@ -259,8 +247,6 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
 
   /** A non-persistent cache. */
   protected InMemoryActionCache inMemoryCache;
-
-  protected SkyFunction actionTemplateExpansionFunction;
 
   /** A class that records an event. */
   protected static class Button implements Runnable {
@@ -358,30 +344,9 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
           new DummyExecutor(rootDirectory),
           builtArtifacts, /*explain=*/
           false,
-          null,
           null);
     } finally {
       tsgm.waitForTimestampGranularity(reporter.getOutErr());
-    }
-  }
-
-  /** {@link TestAction} that copies its single input to its single output. */
-  protected static class CopyingAction extends TestAction {
-    CopyingAction(Runnable effect, Artifact input, Artifact output) {
-      super(effect, ImmutableSet.of(input), ImmutableSet.of(output));
-    }
-
-    @Override
-    public void execute(ActionExecutionContext actionExecutionContext)
-        throws ActionExecutionException {
-      super.execute(actionExecutionContext);
-      try {
-        FileSystemUtils.copyFile(
-            Iterables.getOnlyElement(getInputs()).getPath(),
-            Iterables.getOnlyElement(getOutputs()).getPath());
-      } catch (IOException e) {
-        throw new IllegalStateException(e);
-      }
     }
   }
 
@@ -435,18 +400,5 @@ public abstract class TimestampBuilderTestCase extends FoundationTestCase {
     SkyFunctionName getType() {
       throw new UnsupportedOperationException();
     }
-  }
-
-  private class DelegatingActionTemplateExpansionFunction implements SkyFunction {
-    @Override
-    public SkyValue compute(SkyKey skyKey, Environment env)
-        throws SkyFunctionException, InterruptedException {
-      return actionTemplateExpansionFunction.compute(skyKey, env);
-    }
-
-    @Override
-    public String extractTag(SkyKey skyKey) {
-      return actionTemplateExpansionFunction.extractTag(skyKey);
-    }   
   }
 }

@@ -449,10 +449,7 @@ public class BuildView {
         PathFragment bzlFile = new PathFragment("/" + aspect.substring(0, delimiterPosition));
 
         String skylarkFunctionName = aspect.substring(delimiterPosition + 1);
-        for (TargetAndConfiguration targetSpec : topLevelTargetsWithConfigs) {
-          if (!(targetSpec.getTarget() instanceof Rule)) {
-            continue;
-          }
+        for (ConfiguredTargetKey targetSpec : topLevelCtKeys) {
           aspectKeys.add(
               AspectValue.createSkylarkAspectKey(
                   targetSpec.getLabel(),
@@ -467,10 +464,7 @@ public class BuildView {
         final NativeAspectClass aspectFactoryClass =
             ruleClassProvider.getNativeAspectClassMap().get(aspect);
         if (aspectFactoryClass != null) {
-          for (TargetAndConfiguration targetSpec : topLevelTargetsWithConfigs) {
-            if (!(targetSpec.getTarget() instanceof Rule)) {
-              continue;
-            }
+          for (ConfiguredTargetKey targetSpec : topLevelCtKeys) {
             aspectKeys.add(
                 AspectValue.createAspectKey(
                     targetSpec.getLabel(),
@@ -759,16 +753,6 @@ public class BuildView {
     return result.build();
   }
 
-  /**
-   * Trims a configuration to the fragments needed by the given target.
-   */
-  @VisibleForTesting
-  public BuildConfiguration trimConfigurationForTesting(Target target, BuildConfiguration config,
-      EventHandler eventHandler) throws InterruptedException {
-    return Iterables.getOnlyElement(trimConfigurations(
-        ImmutableList.<TargetAndConfiguration>of(new TargetAndConfiguration(target, config)),
-        eventHandler)).getConfiguration();
-  }
 
   /**
    * Sets the possible artifact roots in the artifact factory. This allows the factory to resolve

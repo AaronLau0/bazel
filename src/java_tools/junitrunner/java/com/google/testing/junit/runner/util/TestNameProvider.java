@@ -24,5 +24,5 @@ public interface TestNameProvider {
   /**
    * Gets the description of the current test.
    */
-  Description get();
+  public Description get();
 }

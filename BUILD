@@ -27,7 +27,6 @@ filegroup(
             "bazel-*",  # convenience symlinks
             "out",  # IntelliJ with setup-intellij.sh
             "output",  # output of compile.sh
-            "WORKSPACE.user.bzl",  # generated workspace file
             ".*",  # mainly .git* files
         ],
     ) + [

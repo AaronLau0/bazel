@@ -111,11 +111,9 @@ typedef std::map<std::string, FileInfo> FileInfoMap;
 
 class RunfilesCreator {
  public:
-  explicit RunfilesCreator(const std::string &output_base,
-                           bool windows_compatible, bool manifest_only)
+  explicit RunfilesCreator(const std::string &output_base, bool windows_compatible)
       : output_base_(output_base),
         windows_compatible_(windows_compatible),
-        manifest_only_(manifest_only),
         output_filename_("MANIFEST"),
         temp_filename_(output_filename_ + ".tmp") {
     SetupOutputBase();
@@ -209,10 +207,8 @@ class RunfilesCreator {
            output_filename_.c_str());
     }
 
-    if (!manifest_only_) {
-      ScanTreeAndPrune(".");
-      CreateFiles();
-    }
+    ScanTreeAndPrune(".");
+    CreateFiles();
 
     // rename output file into place
     if (rename(temp_filename_.c_str(), output_filename_.c_str()) != 0) {
@@ -432,7 +428,6 @@ class RunfilesCreator {
  private:
   std::string output_base_;
   bool windows_compatible_;
-  bool manifest_only_;
   std::string output_filename_;
   std::string temp_filename_;
 
@@ -446,7 +441,6 @@ int main(int argc, char **argv) {
   bool allow_relative = false;
   bool use_metadata = false;
   bool windows_compatible = false;
-  bool manifest_only = false;
 
   while (argc >= 1) {
     if (strcmp(argv[0], "--allow_relative") == 0) {
@@ -458,10 +452,6 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[0], "--windows_compatible") == 0) {
       windows_compatible = true;
       argc--; argv++;
-    } else if (strcmp(argv[0], "--manifest_only") == 0) {
-      manifest_only = true;
-      argc--;
-      argv++;
     } else {
       break;
     }
@@ -487,8 +477,7 @@ int main(int argc, char **argv) {
     manifest_file = std::string(cwd_buf) + '/' + manifest_file;
   }
 
-  RunfilesCreator runfiles_creator(output_base_dir, windows_compatible,
-                                   manifest_only);
+  RunfilesCreator runfiles_creator(output_base_dir, windows_compatible);
   runfiles_creator.ReadManifest(manifest_file, allow_relative, use_metadata);
   runfiles_creator.CreateRunfiles();
 
