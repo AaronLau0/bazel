@@ -261,7 +261,8 @@ public class CppCompileAction extends AbstractAction
             ruleContext,
             mandatoryInputs,
             context.getTransitiveCompilationPrerequisites(),
-            optionalSourceFile),
+            optionalSourceFile,
+            lipoScannables),
         CollectionUtils.asListWithoutNulls(
             outputFile, (dotdFile == null ? null : dotdFile.artifact()), gcnoFile, dwoFile));
     this.configuration = configuration;
@@ -333,7 +334,8 @@ public class CppCompileAction extends AbstractAction
       RuleContext ruleContext,
       NestedSet<Artifact> mandatoryInputs,
       Set<Artifact> prerequisites,
-      Artifact optionalSourceFile) {
+      Artifact optionalSourceFile,
+      Iterable<IncludeScannable> lipoScannables) {
     NestedSetBuilder<Artifact> builder = NestedSetBuilder.stableOrder();
     if (optionalSourceFile != null) {
       builder.add(optionalSourceFile);
@@ -341,6 +343,20 @@ public class CppCompileAction extends AbstractAction
     builder.addAll(prerequisites);
     builder.addAll(CppHelper.getToolchain(ruleContext).getBuiltinIncludeFiles());
     builder.addTransitive(mandatoryInputs);
+    if (lipoScannables != null && lipoScannables.iterator().hasNext()) {
+      // We need to add "legal generated scanner files" coming through LIPO scannables here. These
+      // usually contain pre-grepped source files, i.e. files just containing the #include lines
+      // extracted from generated files. With LIPO, some of these files can be accessed, even though
+      // there is no direct dependency on them. Adding the artifacts as inputs to this compile
+      // action ensures that the action generating them is actually executed.
+      for (IncludeScannable lipoScannable : lipoScannables) {
+        for (Artifact value : lipoScannable.getLegalGeneratedScannerFileMap().values()) {
+          if (value != null) {
+            builder.add(value);
+          }
+        }
+      }
+    }
     return builder.build();
   }
 
@@ -738,7 +754,7 @@ public class CppCompileAction extends AbstractAction
     // Avoid immutable sets here to limit memory churn.
     Set<PathFragment> declaredIncludeDirs = Sets.newHashSet(context.getDeclaredIncludeDirs());
     Set<PathFragment> warnIncludeDirs = Sets.newHashSet(context.getDeclaredIncludeWarnDirs());
-    Set<Artifact> declaredIncludeSrcs = Sets.newHashSet(context.getDeclaredIncludeSrcs());
+    Set<Artifact> declaredIncludeSrcs = Sets.newHashSet(getDeclaredIncludeSrcs());
     for (Artifact input : inputsForValidation) {
       if (context.getTransitiveCompilationPrerequisites().contains(input)
           || allowedIncludes.contains(input)) {
@@ -1028,7 +1044,7 @@ public class CppCompileAction extends AbstractAction
   private Map<PathFragment, Artifact> getAllowedDerivedInputsMap() {
     Map<PathFragment, Artifact> allowedDerivedInputMap = new HashMap<>();
     addToMap(allowedDerivedInputMap, mandatoryInputs);
-    addToMap(allowedDerivedInputMap, context.getDeclaredIncludeSrcs());
+    addToMap(allowedDerivedInputMap, getDeclaredIncludeSrcs());
     addToMap(allowedDerivedInputMap, context.getTransitiveCompilationPrerequisites());
     Artifact artifact = getSourceFile();
     if (!artifact.isSourceArtifact()) {
@@ -1072,7 +1088,16 @@ public class CppCompileAction extends AbstractAction
    * Return explicit header files (i.e., header files explicitly listed). The
    * return value may contain duplicate elements.
    */
+  @Override
   public NestedSet<Artifact> getDeclaredIncludeSrcs() {
+    if (lipoScannables != null && lipoScannables.iterator().hasNext()) {
+      NestedSetBuilder<Artifact> srcs = NestedSetBuilder.stableOrder();
+      srcs.addTransitive(context.getDeclaredIncludeSrcs());
+      for (IncludeScannable lipoScannable : lipoScannables) {
+        srcs.addTransitive(lipoScannable.getDeclaredIncludeSrcs());
+      }
+      return srcs.build();
+    }
     return context.getDeclaredIncludeSrcs();
   }
 
@@ -1280,18 +1305,28 @@ public class CppCompileAction extends AbstractAction
       List<String> commandLine = new ArrayList<>();
 
       // first: The command name.
-      commandLine.add(cppConfiguration.getToolPathFragment(Tool.GCC).getPathString());
+      if (!featureConfiguration.actionIsConfigured(actionName)) {
+        commandLine.add(cppConfiguration.getToolPathFragment(Tool.GCC).getPathString());
+      } else {
+        commandLine.add(
+            featureConfiguration
+                .getToolForAction(actionName)
+                .getToolPath(cppConfiguration.getCrosstoolTopPathFragment())
+                .getPathString());
+      }
 
       // second: The compiler options.
       commandLine.addAll(getCompilerOptions());
 
-      // third: The file to compile!
-      commandLine.add("-c");
-      commandLine.add(sourceFile.getExecPathString());
+      if (!featureConfiguration.isEnabled("compile_action_flags_in_flag_set")) {
+        // third: The file to compile!
+        commandLine.add("-c");
+        commandLine.add(sourceFile.getExecPathString());
 
-      // finally: The output file. (Prefixed with -o).
-      commandLine.add("-o");
-      commandLine.add(outputFile.getPathString());
+        // finally: The output file. (Prefixed with -o).
+        commandLine.add("-o");
+        commandLine.add(outputFile.getPathString());
+      }
 
       return commandLine;
     }
@@ -1338,28 +1373,14 @@ public class CppCompileAction extends AbstractAction
         }
       }
 
-      // Enable <object>.d file generation.
-      if (dotdFile != null) {
-        // Gcc options:
-        //  -MD turns on .d file output as a side-effect (doesn't imply -E)
-        //  -MM[D] enables user includes only, not system includes
-        //  -MF <name> specifies the dotd file name
-        // Issues:
-        //  -M[M] alone subverts actual .o output (implies -E)
-        //  -M[M]D alone breaks some of the .d naming assumptions
-        // This combination gets user and system includes with specified name:
-        //  -MD -MF <name>
-        options.add("-MD");
-        options.add("-MF");
-        options.add(dotdFile.getSafeExecPath().getPathString());
-      }
-
-      if (FileType.contains(outputFile, CppFileTypes.ASSEMBLER, CppFileTypes.PIC_ASSEMBLER)) {
-        options.add("-S");
-      } else if (FileType.contains(outputFile, CppFileTypes.PREPROCESSED_C,
-          CppFileTypes.PREPROCESSED_CPP, CppFileTypes.PIC_PREPROCESSED_C,
-          CppFileTypes.PIC_PREPROCESSED_CPP)) {
-        options.add("-E");
+      if (!featureConfiguration.isEnabled("compile_action_flags_in_flag_set")) {
+        if (FileType.contains(outputFile, CppFileTypes.ASSEMBLER, CppFileTypes.PIC_ASSEMBLER)) {
+          options.add("-S");
+        } else if (FileType.contains(outputFile, CppFileTypes.PREPROCESSED_C,
+            CppFileTypes.PREPROCESSED_CPP, CppFileTypes.PIC_PREPROCESSED_C,
+            CppFileTypes.PIC_PREPROCESSED_CPP)) {
+          options.add("-E");
+        }
       }
 
       return options;

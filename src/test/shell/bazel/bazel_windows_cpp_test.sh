@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 #
 # Copyright 2016 The Bazel Authors. All rights reserved.
 #
@@ -17,8 +17,13 @@
 # Tests the examples provided in Bazel with MSVC toolchain
 #
 
+if ! type rlocation &> /dev/null; then
+  # We do not care about this test on old Bazel releases.
+  exit 0
+fi
+
 # Load test environment
-source $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/test-setup.sh \
+source $(rlocation io_bazel/src/test/shell/bazel/test-setup.sh) \
   || { echo "test-setup.sh not found!" >&2; exit 1; }
 
 if ! is_windows; then
@@ -28,6 +33,7 @@ fi
 
 function set_up() {
   copy_examples
+  export PATH=$PATH:/c/python_27_amd64/files
 }
 
 common_args="-s --verbose_failures --cpu=x64_windows_msvc"

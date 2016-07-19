@@ -26,14 +26,18 @@ import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.analysis.PrerequisiteArtifacts;
 import com.google.devtools.build.lib.analysis.RuleConfiguredTarget.Mode;
 import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.actions.CustomCommandLine;
 import com.google.devtools.build.lib.analysis.actions.FileWriteAction;
+import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.cmdline.LabelSyntaxException;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
+import com.google.devtools.build.lib.packages.RuleClass.ConfiguredTargetFactory.RuleErrorException;
 import com.google.devtools.build.lib.rules.proto.ProtoSourcesProvider;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.util.FileType;
@@ -118,6 +122,7 @@ final class ProtoSupport {
   private final RuleContext ruleContext;
   private final Attributes attributes;
   private final TargetType targetType;
+  private final IntermediateArtifacts intermediateArtifacts;
 
   /**
    * Creates a new proto support.
@@ -129,6 +134,15 @@ final class ProtoSupport {
     this.ruleContext = ruleContext;
     this.attributes = new Attributes(ruleContext);
     this.targetType = targetType;
+    if (targetType != TargetType.PROTO_TARGET) {
+      // Use a a prefixed version of the intermediate artifacts to avoid naming collisions, as
+      // the proto compilation step happens in the same context as the linking target.
+      this.intermediateArtifacts =
+          new IntermediateArtifacts(
+              ruleContext, "_protos", "protos", ruleContext.getConfiguration());
+    } else {
+      this.intermediateArtifacts = ObjcRuleClasses.intermediateArtifacts(ruleContext);
+    }
   }
 
   /**
@@ -159,8 +173,24 @@ final class ProtoSupport {
           || attributes.getOptionsFile() != null) {
         ruleContext.ruleError(PORTABLE_PROTO_FILTERS_NOT_EXCLUSIVE_ERROR);
       }
+    } else {
+      if (attributes.outputsCpp()) {
+        ruleContext.ruleWarning("The output_cpp attribute has been deprecated. Please "
+            + "refer to b/29342376 for information on possible alternatives.");
+      }
+      if (!attributes.usesObjcHeaderNames()) {
+        ruleContext.ruleWarning("As part of the migration process, it is recommended to enable "
+            + "use_objc_header_names. Please refer to b/29368416 for more information.");
+      }
     }
     return this;
+  }
+
+  /**
+   * Returns the intermediate artifacts associated with generated proto compilation.
+   */
+  public IntermediateArtifacts getIntermediateArtifacts() {
+    return intermediateArtifacts;
   }
 
   /**
@@ -177,29 +207,30 @@ final class ProtoSupport {
   }
 
   /**
-   * Adds required configuration to the ObjcCommon support class for proto compilation.
-   *
-   * @param commonBuilder The builder for the ObjcCommon support class.
-   * @return this proto support
+   * Returns the common object for a proto specific compilation environment.
    */
-  public ProtoSupport addCommonOptions(ObjcCommon.Builder commonBuilder) {
-    commonBuilder
-        .setIntermediateArtifacts(ObjcRuleClasses.intermediateArtifacts(ruleContext))
-        .addDepObjcProviders(
-            ruleContext.getPrerequisites(
-                ObjcRuleClasses.PROTO_LIB_ATTR, Mode.TARGET, ObjcProvider.class))
-        .setHasModuleMap();
+  public ObjcCommon getCommon() {
+    ObjcCommon.Builder commonBuilder =
+        new ObjcCommon.Builder(ruleContext)
+            .setIntermediateArtifacts(intermediateArtifacts)
+            .setHasModuleMap()
+            .setCompilationArtifacts(getCompilationArtifacts());
 
-    if (usesProtobufLibrary() && experimentalAutoUnion() && targetType == TargetType.PROTO_TARGET) {
-      commonBuilder
-          .addDirectDependencyHeaderSearchPaths(getUserHeaderSearchPaths())
-          .setCompilationArtifacts(getCompilationArtifacts());
-    } else {
-      commonBuilder
-          .addUserHeaderSearchPaths(getUserHeaderSearchPaths())
-          .setCompilationArtifacts(getCompilationArtifacts());
+    if (targetType == TargetType.LINKING_TARGET) {
+      commonBuilder.addDepObjcProviders(
+          ruleContext.getPrerequisites("deps", Mode.TARGET, ObjcProvider.class));
+    } else if (targetType == TargetType.PROTO_TARGET) {
+      commonBuilder.addDepObjcProviders(
+          ruleContext.getPrerequisites(
+              ObjcRuleClasses.PROTO_LIB_ATTR, Mode.TARGET, ObjcProvider.class));
+
+      if (usesProtobufLibrary() && experimentalAutoUnion()) {
+        commonBuilder.addDirectDependencyHeaderSearchPaths(getUserHeaderSearchPaths());
+      } else {
+        commonBuilder.addUserHeaderSearchPaths(getUserHeaderSearchPaths());
+      }
     }
-    return this;
+    return commonBuilder.build();
   }
 
   /**
@@ -208,12 +239,30 @@ final class ProtoSupport {
    * @param xcodeProviderBuilder The builder for the XcodeProvider support class.
    * @return this proto support
    */
-  public ProtoSupport addXcodeProviderOptions(XcodeProvider.Builder xcodeProviderBuilder) {
+  public ProtoSupport addXcodeProviderOptions(XcodeProvider.Builder xcodeProviderBuilder)
+      throws RuleErrorException {
     xcodeProviderBuilder
         .addUserHeaderSearchPaths(getUserHeaderSearchPaths())
-        .addCopts(ObjcRuleClasses.objcConfiguration(ruleContext).getCopts())
         .addHeaders(getGeneratedHeaders())
         .setCompilationArtifacts(getCompilationArtifacts());
+
+    if (targetType == TargetType.PROTO_TARGET) {
+      xcodeProviderBuilder.addCopts(ObjcRuleClasses.objcConfiguration(ruleContext).getCopts());
+    } else if (targetType == TargetType.LINKING_TARGET) {
+      Label protosLabel = null;
+      try {
+        protosLabel = ruleContext.getLabel().getLocalTargetLabel(
+            ruleContext.getLabel().getName() + "_BundledProtos");
+      } catch (LabelSyntaxException e) {
+        ruleContext.throwWithRuleError(e.getLocalizedMessage());
+      }
+      ObjcCommon protoCommon = getCommon();
+      new XcodeSupport(ruleContext, intermediateArtifacts, protosLabel)
+          .addXcodeSettings(xcodeProviderBuilder,
+              protoCommon.getObjcProvider(),
+              XcodeProductType.LIBRARY_STATIC)
+          .addDependencies(xcodeProviderBuilder, new Attribute("deps", Mode.TARGET));
+    }
     return this;
   }
 
@@ -235,7 +284,7 @@ final class ProtoSupport {
     ImmutableList<Artifact> generatedSources = getGeneratedSources();
     CompilationArtifacts.Builder builder =
         new CompilationArtifacts.Builder()
-            .setIntermediateArtifacts(ObjcRuleClasses.intermediateArtifacts(ruleContext))
+            .setIntermediateArtifacts(intermediateArtifacts)
             .setPchFile(Optional.<Artifact>absent())
             .addAdditionalHdrs(getGeneratedHeaders());
 
@@ -244,7 +293,7 @@ final class ProtoSupport {
     }
 
     if (experimentalAutoUnion()) {
-      if (targetType == TargetType.PROTO_TARGET && !usesProtobufLibrary()
+      if ((targetType == TargetType.PROTO_TARGET && !usesProtobufLibrary())
           || targetType == TargetType.LINKING_TARGET) {
         builder.addNonArcSrcs(generatedSources);
       }
@@ -374,7 +423,10 @@ final class ProtoSupport {
   }
 
   private String getProtoInputListFileContents() {
-    return Artifact.joinExecPaths("\n", getFilteredProtoSources());
+    // Sort the file names to make the remote action key independent of the precise deps structure.
+    // compile_protos.py will sort the input list anyway.
+    Iterable<Artifact> sorted = Ordering.natural().immutableSortedCopy(getFilteredProtoSources());
+    return Artifact.joinExecPaths("\n", sorted);
   }
 
   private PathFragment getWorkspaceRelativeOutputDir() {
@@ -407,7 +459,7 @@ final class ProtoSupport {
             .addAll(getAllProtoSources())
             .add(getProtoInputListFile())
             .addAll(attributes.getProtoCompilerSupport())
-            .addAll(getPortableProtoFilters());
+            .addTransitive(getPortableProtoFilters());
 
     Artifact optionsFile = attributes.getOptionsFile();
     if (optionsFile != null) {
@@ -457,30 +509,17 @@ final class ProtoSupport {
   }
 
   private CustomCommandLine getProtobufCommandLine() {
-    CustomCommandLine.Builder commandLineBuilder =
-        new CustomCommandLine.Builder()
-            .add(attributes.getProtoCompiler().getExecPathString())
-            .add("--input-file-list")
-            .add(getProtoInputListFile().getExecPathString())
-            .add("--output-dir")
-            .add(getWorkspaceRelativeOutputDir().getSafePathString())
-            .add("--force")
-            .add("--proto-root-dir")
-            .add(".");
-
-    boolean configAdded = false;
-    for (Artifact portableProtoFilter : getPortableProtoFilters()) {
-      String configFlag;
-      if (!configAdded) {
-        configFlag = "--config";
-        configAdded = true;
-      } else {
-        configFlag = "--extra-filter-config";
-      }
-
-      commandLineBuilder.add(configFlag).add(portableProtoFilter.getExecPathString());
-    }
-    return commandLineBuilder.build();
+    return new CustomCommandLine.Builder()
+        .add(attributes.getProtoCompiler().getExecPathString())
+        .add("--input-file-list")
+        .add(getProtoInputListFile().getExecPathString())
+        .add("--output-dir")
+        .add(getWorkspaceRelativeOutputDir().getSafePathString())
+        .add("--force")
+        .add("--proto-root-dir")
+        .add(".")
+        .addBeforeEachExecPath("--config", getPortableProtoFilters())
+        .build();
   }
 
   private ImmutableList<Artifact> generatedOutputArtifacts(FileType newFileType) {

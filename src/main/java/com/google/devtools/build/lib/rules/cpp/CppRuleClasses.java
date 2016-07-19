@@ -30,14 +30,69 @@ import static com.google.devtools.build.lib.rules.cpp.CppFileTypes.SHARED_LIBRAR
 import static com.google.devtools.build.lib.rules.cpp.CppFileTypes.VERSIONED_SHARED_LIBRARY;
 
 import com.google.devtools.build.lib.analysis.LanguageDependentFragment.LibraryLanguage;
+import com.google.devtools.build.lib.analysis.config.BuildConfiguration;
+import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.packages.Attribute.LateBoundLabel;
+import com.google.devtools.build.lib.packages.Attribute.Transition;
+import com.google.devtools.build.lib.packages.AttributeMap;
 import com.google.devtools.build.lib.packages.ImplicitOutputsFunction.SafeImplicitOutputsFunction;
+import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.rules.test.InstrumentedFilesCollector.InstrumentationSpec;
+import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.util.FileTypeSet;
+import com.google.devtools.build.lib.view.config.crosstool.CrosstoolConfig.LipoMode;
 
 /**
  * Rule class definitions for C++ rules.
  */
 public class CppRuleClasses {
+
+  /** Returns true if this rule should create a dynamic library. */
+  public static boolean shouldCreateDynamicLibrary(AttributeMap rule) {
+    return !rule.get("linkstatic", Type.BOOLEAN) && CcLibrary.appearsToHaveObjectFiles(rule);
+  }
+
+  /**
+   * Implementation for the :lipo_context_collector attribute.
+   */
+  public static final LateBoundLabel<BuildConfiguration> LIPO_CONTEXT_COLLECTOR =
+      new LateBoundLabel<BuildConfiguration>() {
+    @Override
+    public Label resolve(Rule rule, AttributeMap attributes, BuildConfiguration configuration) {
+      // This attribute connects a target to the LIPO context target configured with the
+      // lipo input collector configuration.
+      CppConfiguration cppConfiguration = configuration.getFragment(CppConfiguration.class);
+      return !cppConfiguration.isLipoContextCollector()
+          && (cppConfiguration.getLipoMode() == LipoMode.BINARY)
+          ? cppConfiguration.getLipoContextLabel()
+          : null;
+    }
+  };
+
+  /**
+   * Configuration transitions required by LIPO.
+   */
+  public enum LipoTransition implements Transition {
+    /**
+     * LIPO context collector.
+     *
+     * <p>This configuration transition leads into a configuration that is used for collecting
+     * C++ compilation contexts for LIPO builds so that e.g. an include path entry required by an
+     * inlined function is there when the place is compiled where it is inlined at.
+     */
+    LIPO_COLLECTOR,
+
+    /**
+     * Transition used for switching back to the LIPO-optimized configuration.
+     */
+    TARGET_CONFIG_FOR_LIPO;
+
+    @Override
+    public boolean defaultsToSelf() {
+      return true;
+    }
+  }
+
   // Artifacts of these types are discarded from the 'hdrs' attribute in cc rules
   static final FileTypeSet DISALLOWED_HDRS_FILES = FileTypeSet.of(
       ARCHIVE,
@@ -100,6 +155,18 @@ public class CppRuleClasses {
    * randomization of symbol names that are in the anonymous namespace but have external linkage.
    */
   public static final String RANDOM_SEED = "random_seed";
+
+  /**
+   * A string constant for the compile_action_flags_in_flag_set feature. This feature is just a
+   * transitional feature which helps telling whether -c and -o options are already in flag_set of
+   * action_config in CROSSTOOL file. Once the transition is done, it should be removed.
+   */
+  public static final String COMPILE_ACTION_FLAGS_IN_FLAG_SET = "compile_action_flags_in_flag_set";
+
+  /**
+   * A string constant for the dependency_file feature. This feature generates the .d file.
+   */
+  public static final String DEPENDENCY_FILE = "dependency_file";
 
   /**
    * A string constant for the module_map_home_cwd feature.

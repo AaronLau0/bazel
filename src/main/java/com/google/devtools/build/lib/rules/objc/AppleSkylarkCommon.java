@@ -17,10 +17,10 @@ package com.google.devtools.build.lib.rules.objc;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.devtools.build.lib.rules.apple.AppleToolchain;
 import com.google.devtools.build.lib.rules.objc.ObjcProvider.Key;
+import com.google.devtools.build.lib.skylarkinterface.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkCallable;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkModule;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
-import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature.Param;
 import com.google.devtools.build.lib.syntax.BuiltinFunction;
 import com.google.devtools.build.lib.syntax.SkylarkDict;
 import com.google.devtools.build.lib.syntax.SkylarkSignatureProcessor;
@@ -54,7 +54,10 @@ public class AppleSkylarkCommon {
 
   @VisibleForTesting
   public static final String NOT_SET_ERROR = "Value for key %s must be a set, instead found %s.";
-  
+
+  @VisibleForTesting
+  public static final String MISSING_KEY_ERROR = "No value for required key %s was present.";
+
   @SkylarkCallable(
       name = "apple_toolchain",
       doc = "Utilities for resolving items from the apple toolchain."
@@ -68,25 +71,24 @@ public class AppleSkylarkCommon {
     objectType = AppleSkylarkCommon.class,
     returnType = ObjcProvider.class,
     doc = "Creates a new ObjcProvider instance.",
-    mandatoryPositionals = {
-      @Param(name = "self", type = AppleSkylarkCommon.class, doc = "The apple_common instance.")
-    },
-    optionalNamedOnly = {
+    parameters = {
+      @Param(name = "self", type = AppleSkylarkCommon.class, doc = "The apple_common instance."),
       @Param(
         name = "uses_swift",
         type = Boolean.class,
         defaultValue = "False",
+        named = true,
+        positional = false,
         doc = "Whether this provider should enable Swift support."
       )
     },
-    extraKeywords = {
+    extraKeywords =
       @Param(
         name = "kwargs",
         type = SkylarkDict.class,
         defaultValue = "{}",
         doc = "Dictionary of arguments"
       )
-    }
   )
   public static final BuiltinFunction NEW_OBJC_PROVIDER =
       new BuiltinFunction("new_objc_provider") {
