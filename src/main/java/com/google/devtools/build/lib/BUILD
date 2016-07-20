@@ -27,6 +27,7 @@ filegroup(
         "//src/main/java/com/google/devtools/build/lib/rules/genquery:srcs",
         "//src/main/java/com/google/devtools/build/lib/rules/objc:srcs",
         "//src/main/java/com/google/devtools/build/lib/sandbox:srcs",
+        "//src/main/java/com/google/devtools/build/lib/ssd:srcs",
         "//src/main/java/com/google/devtools/build/lib/standalone:srcs",
         "//src/main/java/com/google/devtools/build/lib/worker:srcs",
         "//src/main/java/com/google/devtools/build/skyframe:srcs",
@@ -62,6 +63,16 @@ java_library(
         "//src:windows": [],
         "//conditions:default": ["//src/main/native:libunix.so"],
     }),
+    deps = [
+        ":os_util",
+        ":shell",
+        "//third_party:guava",
+    ],
+)
+
+java_library(
+    name = "windows",
+    srcs = glob(["windows/*.java"]),
     deps = [
         ":shell",
         "//third_party:guava",
@@ -249,6 +260,7 @@ java_library(
         ":shell",
         ":unix",
         ":vfs",
+        ":windows",
         "//src/main/java/com/google/devtools/common/options",
         "//third_party:guava",
         "//third_party:jsr305",
@@ -574,6 +586,7 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/bazel/dash",
         "//src/main/java/com/google/devtools/build/lib/remote",
         "//src/main/java/com/google/devtools/build/lib/sandbox",
+        "//src/main/java/com/google/devtools/build/lib/ssd",
         "//src/main/java/com/google/devtools/build/lib/standalone",
         "//src/main/java/com/google/devtools/build/lib/worker",
         "//src/main/java/com/google/devtools/build/skyframe",
@@ -704,7 +717,7 @@ java_library(
 java_library(
     name = "java-rules",
     srcs = glob(
-        ["rules/java/*.java"],
+        ["rules/java/**/*.java"],
         exclude = [
             "rules/java/JavaImplicitAttributes.java",
             "rules/java/JavaToolchainDataParser.java",
@@ -717,6 +730,7 @@ java_library(
         ":events",
         ":java-implicit-attributes",
         ":packages-internal",
+        ":proto-rules",
         ":shell",
         ":skylarkinterface",
         ":util",
@@ -851,6 +865,7 @@ java_library(
         ":unix",
         ":util",
         ":vfs",
+        ":windows",
         "//src/main/java/com/google/devtools/build/docgen:docgen_javalib",
         "//src/main/java/com/google/devtools/build/lib/actions",
         "//src/main/java/com/google/devtools/build/lib/query2",
@@ -962,6 +977,31 @@ genrule(
     visibility = [
         "//site:__pkg__",
         "//src/test/shell/bazel:__pkg__",
+    ],
+)
+
+genrule(
+    name = "gen_command-line-reference",
+    srcs = [
+        "//site:command-line-reference-prefix.html",
+        "//site:command-line-reference-suffix.html",
+    ],
+    outs = ["command-line-reference.html"],
+    cmd = (
+        "cat $(location //site:command-line-reference-prefix.html) > $@ && " +
+        "TMP=`mktemp -d /tmp/tmp.XXXXXXXXXX` && " +
+        "mkdir $${TMP}/_embedded_binaries/ && " +
+        "$(location :bazel/BazelServer) " +
+        "--jvm_flag=-Dio.bazel.EnableJni=0 --batch " +
+        "--install_base=$${TMP} --output_base=$${TMP}/output/ " +
+        "help everything-as-html >> $@ 2>/dev/null && " +
+        "cat $(location //site:command-line-reference-suffix.html) >> $@"
+    ),
+    tools = [
+        ":bazel/BazelServer",
+    ],
+    visibility = [
+        "//site:__pkg__",
     ],
 )
 

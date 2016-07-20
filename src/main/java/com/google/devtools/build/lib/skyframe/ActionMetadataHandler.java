@@ -24,7 +24,6 @@ import com.google.devtools.build.lib.actions.ActionInputHelper;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.Artifact.TreeFileArtifact;
 import com.google.devtools.build.lib.actions.cache.Digest;
-import com.google.devtools.build.lib.actions.cache.DigestUtils;
 import com.google.devtools.build.lib.actions.cache.Metadata;
 import com.google.devtools.build.lib.actions.cache.MetadataHandler;
 import com.google.devtools.build.lib.skyframe.TreeArtifactValue.TreeArtifactException;
@@ -100,16 +99,6 @@ public class ActionMetadataHandler implements MetadataHandler {
    * See {@link #getAdditionalOutputData()} for details.
    */
   private final ConcurrentMap<Artifact, FileArtifactValue> additionalOutputData =
-      new ConcurrentHashMap<>();
-
-  /**
-   * Contains per-fragment FileArtifactValues when those values must be stored separately.
-   * Bona-fide Artifacts are stored in {@link #additionalOutputData} instead.
-   * See {@link #getAdditionalOutputData()} for details.
-   * Unlike additionalOutputData, this map is discarded (the relevant FileArtifactValues
-   * are stored in outputTreeArtifactData's values instead).
-   */
-  private final ConcurrentMap<TreeFileArtifact, FileArtifactValue> cachedTreeFileArtifactData =
       new ConcurrentHashMap<>();
 
   /**
@@ -263,10 +252,9 @@ public class ActionMetadataHandler implements MetadataHandler {
       throw new FileNotFoundException(artifact.prettyPrint() + " does not exist");
     }
     if (!artifact.hasParent()) {
-      // Artifacts may use either the "real" digest or the mtime, if the file is size 0.
+      // Artifacts may use either the "real" digest or the mtime, if the file is a directory.
       boolean isFile = data.isFile();
-      boolean useDigest = DigestUtils.useFileDigest(isFile, isFile ? data.getSize() : 0);
-      if (useDigest && data.getDigest() != null) {
+      if (isFile && data.getDigest() != null) {
         // We do not need to store the FileArtifactValue separately -- the digest is in the
         // file value and that is all that is needed for this file's metadata.
         return new Metadata(data.getDigest());
@@ -287,8 +275,7 @@ public class ActionMetadataHandler implements MetadataHandler {
       // We are dealing with artifacts inside a tree artifact.
       FileArtifactValue value =
           FileArtifactValue.createWithDigest(artifact.getPath(), injectedDigest, data.getSize());
-      FileArtifactValue oldValue = cachedTreeFileArtifactData.putIfAbsent(
-          (TreeFileArtifact) artifact, value);
+      FileArtifactValue oldValue = additionalOutputData.putIfAbsent(artifact, value);
       checkInconsistentData(artifact, oldValue, value);
       return new Metadata(value.getDigest());
     }
@@ -375,7 +362,7 @@ public class ActionMetadataHandler implements MetadataHandler {
         Maps.newHashMapWithExpectedSize(contents.size());
 
     for (TreeFileArtifact treeFileArtifact : contents) {
-      FileArtifactValue cachedValue = cachedTreeFileArtifactData.get(treeFileArtifact);
+      FileArtifactValue cachedValue = additionalOutputData.get(treeFileArtifact);
       if (cachedValue == null) {
         FileValue fileValue = outputArtifactData.get(treeFileArtifact);
         // This is similar to what's present in getRealMetadataForArtifact, except
@@ -385,11 +372,11 @@ public class ActionMetadataHandler implements MetadataHandler {
         if (fileValue == null) {
           fileValue = constructFileValue(treeFileArtifact, /*statNoFollow=*/ null);
           // A minor hack: maybeStoreAdditionalData will force the data to be stored
-          // in cachedTreeFileArtifactData.
+          // in additionalOutputData.
           maybeStoreAdditionalData(treeFileArtifact, fileValue, null);
         }
         cachedValue = Preconditions.checkNotNull(
-            cachedTreeFileArtifactData.get(treeFileArtifact), treeFileArtifact);
+            additionalOutputData.get(treeFileArtifact), treeFileArtifact);
       }
 
       values.put(treeFileArtifact, cachedValue);
@@ -500,7 +487,6 @@ public class ActionMetadataHandler implements MetadataHandler {
     outputDirectoryListings.clear();
     outputTreeArtifactData.clear();
     additionalOutputData.clear();
-    cachedTreeFileArtifactData.clear();
   }
 
   @Override

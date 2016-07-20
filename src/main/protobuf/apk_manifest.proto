@@ -21,6 +21,8 @@ message Artifact {
   // This path is relative to "bazel info execution_root"
   string exec_root_path = 1;
   bytes hash = 2;
+  // The label of the rule that produced this artifact.
+  string label = 3;
 }
 
 message NativeLib {
@@ -92,4 +94,7 @@ message ApkManifest {
 
   // Information about resources referenced from AndroidManifest.xml.
   repeated AndroidManifestResource android_manifest_resources = 6;
+
+  // Location of the debug keystore file.
+  Artifact debug_keystore = 7;
 }

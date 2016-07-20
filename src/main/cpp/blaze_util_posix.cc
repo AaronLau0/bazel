@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -62,6 +64,8 @@ void ExecuteProgram(const string &exe, const vector<string> &args_vector) {
 
 std::string ConvertPath(const std::string &path) { return path; }
 
+std::string ConvertPathList(const std::string& path_list) { return path_list; }
+
 std::string ListSeparator() { return ":"; }
 
 bool SymlinkDirectories(const string &target, const string &link) {
@@ -103,7 +107,7 @@ class PipeBlazeServerStartup : public BlazeServerStartup {
  public:
   PipeBlazeServerStartup(int pipe_fd);
   virtual ~PipeBlazeServerStartup();
-  bool IsStillAlive() override;
+  virtual bool IsStillAlive();
 
  private:
   int pipe_fd;

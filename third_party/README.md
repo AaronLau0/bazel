@@ -90,6 +90,11 @@ a minimal set of extra dependencies.
 * License: Apache License 2.0
 
 
+## [Google's Dagger](https://github.com/google/dagger)
+
+* Version: 2.5
+* License: Apache License 2.0
+
 ## [Error Prone](https://github.com/google/error-prone)
 
 * Version: 2.0.6-20151216
@@ -111,12 +116,12 @@ a minimal set of extra dependencies.
 ## [jFormatString](https://code.google.com/p/j-format-string/)
 
 * Version: 3.0.0
-* License: GNU GPL v2
+* License: GNU GPL v2 with Classpath exception
 
 ## [Checker Framework Dataflow](http://code.google.com/p/checker-framework/)
 
 * Version: 1.8.10
-* License: GPLv2, portions MIT
+* License: GNU GPL v2 with Classpath exception, portions MIT
 
 ## [Checker Framework Javacutil](http://code.google.com/p/checker-framework/)
 
@@ -165,15 +170,10 @@ a minimal set of extra dependencies.
 * License: Apache License 2.0
 
 
-## [guice](https://github.com/google/guice)
-
-* Version: 4.0
-* License: Apache License 2.0
-
 ## [javac](https://github.com/google/error-prone-javac)
 
 * Version: 1.9.0-dev-r2973-2 (javac7.jar) and 1.9.0-dev-r2644-2 (javac.jar)
-* License: GNU GPL v2 with Classpath exception
+* License: GNU GPL v2 with Classpath exception (plus other licenses, see third_party/java/jdk/langtools/LICENSE file).
 
 ## [jarjar](https://code.google.com/p/jarjar/)
 
@@ -266,7 +266,7 @@ a minimal set of extra dependencies.
 
 ## [hazelcast](http://hazelcast.org/)
 
-* Version: 3.5.4
+* Version: 3.6.4
 * License: Apache License 2.0
 
 

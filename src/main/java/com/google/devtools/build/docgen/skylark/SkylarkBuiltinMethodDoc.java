@@ -13,8 +13,8 @@
 // limitations under the License.
 package com.google.devtools.build.docgen.skylark;
 
+import com.google.devtools.build.lib.skylarkinterface.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
-import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature.Param;
 import com.google.devtools.build.lib.syntax.BaseFunction;
 
 import java.util.ArrayList;
@@ -81,12 +81,13 @@ public final class SkylarkBuiltinMethodDoc extends SkylarkMethodDoc {
   }
 
   private void processParams() {
-    processParams(adjustedMandatoryPositionals(annotation));
-    processParams(annotation.optionalPositionals());
-    processParams(annotation.optionalNamedOnly());
-    processParams(annotation.mandatoryNamedOnly());
-    processParams(annotation.extraPositionals());
-    processParams(annotation.extraKeywords());
+    processParams(adjustedParameters(annotation));
+    if (!annotation.extraPositionals().name().isEmpty()) {
+      this.params.add(new SkylarkParamDoc(this, annotation.extraPositionals()));
+    }
+    if (!annotation.extraKeywords().name().isEmpty()) {
+      this.params.add(new SkylarkParamDoc(this, annotation.extraKeywords()));
+    }
   }
 
   private void processParams(Param[] params) {

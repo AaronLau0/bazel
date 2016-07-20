@@ -1,8 +1,8 @@
 package(default_visibility = ["//visibility:public"])
 
-alias(
+filegroup(
     name = "sdk",
-    actual = "//external:android/sdk",
+    srcs = ["//external:android/sdk"],
 )
 
 android_library(
@@ -19,6 +19,18 @@ sh_binary(
     name = "aar_generator",
     srcs = ["aar_generator.sh"],
     data = ["//src/tools/android/java/com/google/devtools/build/android:AarGeneratorAction"],
+)
+
+sh_binary(
+    name = "manifest_merger",
+    srcs = ["manifest_merger.sh"],
+    data = ["//src/tools/android/java/com/google/devtools/build/android:ManifestMergerAction"],
+)
+
+sh_binary(
+    name = "rclass_generator",
+    srcs = ["rclass_generator.sh"],
+    data = ["//src/tools/android/java/com/google/devtools/build/android:RClassGeneratorAction"],
 )
 
 sh_binary(

@@ -410,6 +410,7 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
     map.put(SkyFunctions.RECURSIVE_FILESYSTEM_TRAVERSAL,
         new RecursiveFilesystemTraversalFunction());
     map.put(SkyFunctions.FILESET_ENTRY, new FilesetEntryFunction());
+    map.put(SkyFunctions.ACTION_TEMPLATE_EXPANSION, new ActionTemplateExpansionFunction());
     map.putAll(extraSkyFunctions);
     return map.build();
   }
@@ -539,8 +540,8 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
    */
   protected void init() {
     progressReceiver = newSkyframeProgressReceiver();
-    Map<SkyFunctionName, SkyFunction> skyFunctions = skyFunctions(
-        directories.getBuildDataDirectory(), pkgFactory, allowedMissingInputs);
+    ImmutableMap<SkyFunctionName, SkyFunction> skyFunctions =
+        skyFunctions(directories.getBuildDataDirectory(), pkgFactory, allowedMissingInputs);
     memoizingEvaluator = evaluatorSupplier.create(
         skyFunctions, evaluatorDiffer(), progressReceiver, emittedEventState,
         hasIncrementalState());
@@ -630,13 +631,6 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
   @VisibleForTesting
   public void setupDefaultPackage(String defaultsPackageContents) {
     PrecomputedValue.DEFAULTS_PACKAGE_CONTENTS.set(injectable(), defaultsPackageContents);
-  }
-
-  /**
-   * Injects the top-level artifact options.
-   */
-  public void injectTopLevelContext(TopLevelArtifactContext options) {
-    PrecomputedValue.TOP_LEVEL_CONTEXT.set(injectable(), options);
   }
 
   public void injectWorkspaceStatusData() {
@@ -1082,7 +1076,8 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
       boolean finalizeActionsToOutputService,
       int numJobs,
       ActionCacheChecker actionCacheChecker,
-      @Nullable EvaluationProgressReceiver executionProgressReceiver)
+      @Nullable EvaluationProgressReceiver executionProgressReceiver,
+      TopLevelArtifactContext topLevelArtifactContext)
       throws InterruptedException {
     checkActive();
     Preconditions.checkState(actionLogBufferPathGenerator != null);
@@ -1095,9 +1090,11 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
     try {
       progressReceiver.executionProgressReceiver = executionProgressReceiver;
       Iterable<SkyKey> artifactKeys = ArtifactValue.mandatoryKeys(artifactsToBuild);
-      Iterable<SkyKey> targetKeys = TargetCompletionValue.keys(targetsToBuild);
-      Iterable<SkyKey> aspectKeys = AspectCompletionValue.keys(aspects);
-      Iterable<SkyKey> testKeys = TestCompletionValue.keys(targetsToTest, exclusiveTesting);
+      Iterable<SkyKey> targetKeys =
+          TargetCompletionValue.keys(targetsToBuild, topLevelArtifactContext);
+      Iterable<SkyKey> aspectKeys = AspectCompletionValue.keys(aspects, topLevelArtifactContext);
+      Iterable<SkyKey> testKeys =
+          TestCompletionValue.keys(targetsToTest, topLevelArtifactContext, exclusiveTesting);
       return buildDriver.evaluate(
           Iterables.concat(artifactKeys, targetKeys, aspectKeys, testKeys),
           keepGoing,
@@ -1199,6 +1196,10 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
     }
 
     EvaluationResult<SkyValue> result = evaluateSkyKeys(eventHandler, skyKeys);
+    for (Map.Entry<SkyKey, ErrorInfo> entry : result.errorMap().entrySet()) {
+      reportCycles(eventHandler, entry.getValue().getCycleInfo(), entry.getKey());
+    }
+
     ImmutableMap.Builder<Dependency, ConfiguredTarget> cts = ImmutableMap.builder();
 
   DependentNodeLoop:
@@ -1266,6 +1267,9 @@ public abstract class SkyframeExecutor implements WalkableGraphFactory {
     }
     EvaluationResult<SkyValue> fragmentsResult = evaluateSkyKeys(
         eventHandler, transitiveFragmentSkyKeys, /*keepGoing=*/true);
+    for (Map.Entry<SkyKey, ErrorInfo> entry : fragmentsResult.errorMap().entrySet()) {
+      reportCycles(eventHandler, entry.getValue().getCycleInfo(), entry.getKey());
+    }
     for (Dependency key : keys) {
       if (!depsToEvaluate.contains(key)) {
         // No fragments to compute here.

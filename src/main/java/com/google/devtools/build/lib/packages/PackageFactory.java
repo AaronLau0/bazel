@@ -34,8 +34,8 @@ import com.google.devtools.build.lib.packages.Globber.BadGlobException;
 import com.google.devtools.build.lib.packages.License.DistributionType;
 import com.google.devtools.build.lib.packages.Preprocessor.AstAfterPreprocessing;
 import com.google.devtools.build.lib.packages.RuleFactory.BuildLangTypedAttributeValuesMap;
+import com.google.devtools.build.lib.skylarkinterface.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature;
-import com.google.devtools.build.lib.skylarkinterface.SkylarkSignature.Param;
 import com.google.devtools.build.lib.skylarkinterface.SkylarkValue;
 import com.google.devtools.build.lib.syntax.AssignmentStatement;
 import com.google.devtools.build.lib.syntax.BaseFunction;
@@ -64,6 +64,7 @@ import com.google.devtools.build.lib.syntax.Statement;
 import com.google.devtools.build.lib.syntax.Type;
 import com.google.devtools.build.lib.syntax.Type.ConversionException;
 import com.google.devtools.build.lib.util.Preconditions;
+import com.google.devtools.build.lib.vfs.FileSystem;
 import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.UnixGlob;
@@ -274,7 +275,7 @@ public final class PackageFactory {
       this.globCache = globCache;
     }
 
-    private class Token extends Globber.Token {
+    private static class Token extends Globber.Token {
       public final List<String> includes;
       public final List<String> excludes;
       public final boolean excludeDirs;
@@ -333,47 +334,51 @@ public final class PackageFactory {
 
   private final Package.Builder.Helper packageBuilderHelper;
 
-  /**
-   * Constructs a {@code PackageFactory} instance with the given rule factory.
-   */
+  /** Factory for {@link PackageFactory} instances. Intended to only be used by unit tests. */
   @VisibleForTesting
-  public PackageFactory(RuleClassProvider ruleClassProvider) {
-    this(
-        ruleClassProvider,
-        null,
-        AttributeContainer.ATTRIBUTE_CONTAINER_FACTORY,
-        ImmutableList.<EnvironmentExtension>of(),
-        "test",
-        Package.Builder.DefaultHelper.INSTANCE);
-  }
-
-  @VisibleForTesting
-  public PackageFactory(RuleClassProvider ruleClassProvider,
-      EnvironmentExtension environmentExtension) {
-    this(
-        ruleClassProvider,
-        null,
-        AttributeContainer.ATTRIBUTE_CONTAINER_FACTORY,
-        ImmutableList.of(environmentExtension),
-        "test",
-        Package.Builder.DefaultHelper.INSTANCE);
-  }
-
-  @VisibleForTesting
-  public PackageFactory(RuleClassProvider ruleClassProvider,
-      Iterable<EnvironmentExtension> environmentExtensions) {
-    this(
-        ruleClassProvider,
-        null,
-        AttributeContainer.ATTRIBUTE_CONTAINER_FACTORY,
-        environmentExtensions,
-        "test",
-        Package.Builder.DefaultHelper.INSTANCE);
+  public abstract static class FactoryForTesting {
+    public final PackageFactory create(RuleClassProvider ruleClassProvider, FileSystem fs) {
+      return create(ruleClassProvider, null, ImmutableList.<EnvironmentExtension>of(), fs);
+    }
+    
+    public final PackageFactory create(
+        RuleClassProvider ruleClassProvider,
+        EnvironmentExtension environmentExtension,
+        FileSystem fs) {
+      return create(ruleClassProvider, null, ImmutableList.of(environmentExtension), fs);
+    }
+  
+    public final PackageFactory create(
+        RuleClassProvider ruleClassProvider,
+        Map<String, String> platformSetRegexps,
+        Iterable<EnvironmentExtension> environmentExtensions,
+        FileSystem fs) {
+      return create(
+          ruleClassProvider,
+          platformSetRegexps,
+          AttributeContainer.ATTRIBUTE_CONTAINER_FACTORY,
+          environmentExtensions,
+          "test",
+          fs);
+    }
+      
+    protected abstract PackageFactory create(
+        RuleClassProvider ruleClassProvider,
+        Map<String, String> platformSetRegexps,
+        Function<RuleClass, AttributeContainer> attributeContainerFactory,
+        Iterable<EnvironmentExtension> environmentExtensions,
+        String version,
+        FileSystem fs);
   }
 
   /**
    * Constructs a {@code PackageFactory} instance with a specific glob path translator
    * and rule factory.
+   *
+   * <p>Only intended to be called by BlazeRuntime or {@link FactoryForTesting#create}.
+   *
+   * <p>Do not call this constructor directly in tests; please use
+   * TestConstants#PACKAGE_FACTORY_FACTORY_FOR_TESTING instead.
    */
   public PackageFactory(
       RuleClassProvider ruleClassProvider,
@@ -472,36 +477,62 @@ public final class PackageFactory {
     return packageArguments.build();
   }
 
-  /****************************************************************************
-   * Environment function factories.
+  /**
+   * ************************************************************************** Environment function
+   * factories.
    */
 
   /**
    * Returns a function-value implementing "glob" in the specified package context.
    *
-   * @param async if true, start globs in the background but don't block on their completion.
-   *        Only use this for heuristic preloading.
+   * @param async if true, start globs in the background but don't block on their completion. Only
+   *     use this for heuristic preloading.
    */
-  @SkylarkSignature(name = "glob", objectType = Object.class, returnType = SkylarkList.class,
-      doc = "Returns a list of files that match glob search pattern",
-      mandatoryPositionals = {
-        @Param(name = "include", type = SkylarkList.class, generic1 = String.class,
-            doc = "a list of strings specifying patterns of files to include.")},
-      optionalPositionals = {
-        @Param(name = "exclude", type = SkylarkList.class, generic1 = String.class,
-            defaultValue = "[]",
-            doc = "a list of strings specifying patterns of files to exclude."),
-        // TODO(bazel-team): migrate all existing code to use boolean instead?
-        @Param(name = "exclude_directories", type = Integer.class, defaultValue = "1",
-            doc = "a integer that if non-zero indicates directories should not be matched.")},
-      documented = false, useAst = true, useEnvironment = true)
+  @SkylarkSignature(
+    name = "glob",
+    objectType = Object.class,
+    returnType = SkylarkList.class,
+    doc = "Returns a list of files that match glob search pattern",
+    parameters = {
+      @Param(
+        name = "include",
+        type = SkylarkList.class,
+        generic1 = String.class,
+        doc = "a list of strings specifying patterns of files to include."
+      ),
+      @Param(
+        name = "exclude",
+        type = SkylarkList.class,
+        generic1 = String.class,
+        defaultValue = "[]",
+        positional = false,
+        named = true,
+        doc = "a list of strings specifying patterns of files to exclude."
+      ),
+      // TODO(bazel-team): migrate all existing code to use boolean instead?
+      @Param(
+        name = "exclude_directories",
+        type = Integer.class,
+        defaultValue = "1",
+        positional = false,
+        named = true,
+        doc = "a integer that if non-zero indicates directories should not be matched."
+      )
+    },
+    documented = false,
+    useAst = true,
+    useEnvironment = true
+  )
   private static final BuiltinFunction.Factory newGlobFunction =
       new BuiltinFunction.Factory("glob") {
         public BuiltinFunction create(final PackageContext originalContext, final boolean async) {
           return new BuiltinFunction("glob", this) {
             public SkylarkList invoke(
-                SkylarkList include, SkylarkList exclude, Integer excludeDirectories,
-                FuncallExpression ast, Environment env)
+                SkylarkList include,
+                SkylarkList exclude,
+                Integer excludeDirectories,
+                FuncallExpression ast,
+                Environment env)
                 throws EvalException, ConversionException, InterruptedException {
               return callGlob(
                   originalContext, async, include, exclude, excludeDirectories != 0, ast, env);
@@ -577,7 +608,7 @@ public final class PackageFactory {
    */
   @SkylarkSignature(name = "mocksubinclude", returnType = Runtime.NoneType.class,
       doc = "implement the mocksubinclude function emitted by the PythonPreprocessor",
-      mandatoryPositionals = {
+      parameters = {
         @Param(name = "label", type = Object.class,
             doc = "a label designator."),
         @Param(name = "path", type = String.class,
@@ -626,13 +657,15 @@ public final class PackageFactory {
   @SkylarkSignature(name = "environment_group", returnType = Runtime.NoneType.class,
       doc = "Defines a set of related environments that can be tagged onto rules to prevent"
       + "incompatible rules from depending on each other.",
-      mandatoryNamedOnly = {
-        @Param(name = "name", type = String.class,
+      parameters = {
+        @Param(name = "name", type = String.class, positional = false, named = true,
             doc = "The name of the rule."),
         // Both parameter below are lists of label designators
         @Param(name = "environments", type = SkylarkList.class, generic1 = Object.class,
+            positional = false, named = true,
             doc = "A list of Labels for the environments to be grouped, from the same package."),
         @Param(name = "defaults", type = SkylarkList.class, generic1 = Object.class,
+            positional = false, named = true,
             doc = "A list of Labels.")}, // TODO(bazel-team): document what that is
       documented = false, useLocation = true)
   private static final BuiltinFunction.Factory newEnvironmentGroupFunction =
@@ -668,10 +701,9 @@ public final class PackageFactory {
    */
   @SkylarkSignature(name = "exports_files", returnType = Runtime.NoneType.class,
       doc = "Declare a set of files as exported",
-      mandatoryPositionals = {
+      parameters = {
         @Param(name = "srcs", type = SkylarkList.class, generic1 = String.class,
-            doc = "A list of strings, the names of the files to export.")},
-      optionalPositionals = {
+            doc = "A list of strings, the names of the files to export."),
         // TODO(blaze-team): make it possible to express a list of label designators,
         // i.e. a java List or Skylark list of Label or String.
         @Param(name = "visibility", type = SkylarkList.class, noneable = true,
@@ -755,22 +787,8 @@ public final class PackageFactory {
    * TODO(bazel-team): Remove in favor of package.licenses.
    */
   @SkylarkSignature(name = "licenses", returnType = Runtime.NoneType.class,
-      doc = "Declare the license(s) for the code in the current package. Legal license types "
-          + "include:\n"
-          + "<dl>"
-          + "<dt><code>restricted</code></dt><dd>Requires mandatory source distribution.</dd>"
-          + "<dt><code>reciprocal</code></dt><dd>Allows usage of software freely in "
-          + "<b>unmodified</b> form. Any modifications must be made freely available.</dd>"
-          + "<dt><code>notice</code></dt><dd>Original or modified third-party software may be "
-          + "shipped without danger nor encumbering other sources. All of the licenses in this "
-          + "category do, however, have an \"original Copyright notice\" or "
-          + "\"advertising clause\", wherein any external distributions must include the notice "
-          + "or clause specified in the license.</dd>"
-          + "<dt><code>permissive</code></dt><dd>Code that is under a license but does not "
-          + "require a notice.</dd>"
-          + "<dt><code>unencumbered</code></dt><dd>Public domain, free for any use.</dd>"
-          + "</dl>",
-      mandatoryPositionals = {
+      doc = "Declare the license(s) for the code in the current package.",
+      parameters = {
         @Param(name = "license_strings", type = SkylarkList.class, generic1 = String.class,
             doc = "A list of strings, the names of the licenses used.")},
       documented = false, useLocation = true)
@@ -802,7 +820,7 @@ public final class PackageFactory {
   // and share the functions with the native package... which requires unifying the List types.
   @SkylarkSignature(name = "distribs", returnType = Runtime.NoneType.class,
       doc = "Declare the distribution(s) for the code in the current package.",
-      mandatoryPositionals = {
+      parameters = {
         @Param(name = "distribution_strings", type = Object.class,
             doc = "The distributions.")},
       documented = false, useLocation = true)
@@ -827,16 +845,19 @@ public final class PackageFactory {
 
   @SkylarkSignature(name = "package_group", returnType = Runtime.NoneType.class,
       doc = "Declare a set of files as exported",
-      mandatoryNamedOnly = {
-        @Param(name = "name", type = String.class,
-            doc = "The name of the rule.")},
-      optionalNamedOnly = {
+      parameters = {
+        @Param(name = "name", type = String.class, named = true, positional = false,
+            doc = "The name of the rule."),
         @Param(name = "packages", type = SkylarkList.class, generic1 = String.class,
             defaultValue = "[]",
+            named = true,
+            positional = false,
             doc = "A list of Strings specifying the packages grouped."),
         // java list or list of label designators: Label or String
         @Param(name = "includes", type = SkylarkList.class, generic1 = Object.class,
             defaultValue = "[]",
+            named = true,
+            positional = false,
             doc = "A list of Label specifiers for the files to include.")},
       documented = false, useAst = true, useEnvironment = true)
   private static final BuiltinFunction.Factory newPackageGroupFunction =
@@ -865,7 +886,7 @@ public final class PackageFactory {
   private static SkylarkDict<String, Object> targetDict(
       Target target, Location loc, Environment env)
       throws NotRepresentableException, EvalException {
-    if (target == null && !(target instanceof Rule)) {
+    if (target == null || !(target instanceof Rule)) {
       return null;
     }
     SkylarkDict<String, Object> values = SkylarkDict.<String, Object>of(env);
@@ -935,11 +956,11 @@ public final class PackageFactory {
     if (val instanceof TriState) {
       switch ((TriState) val) {
         case AUTO:
-          return new Integer(-1);
+          return Integer.valueOf(-1);
         case YES:
-          return new Integer(1);
+          return Integer.valueOf(1);
         case NO:
-          return new Integer(0);
+          return Integer.valueOf(0);
       }
     }
 
@@ -1516,6 +1537,14 @@ public final class PackageFactory {
     for (EnvironmentExtension extension : environmentExtensions) {
       extension.update(pkgEnv);
     }
+  }
+
+  /**
+   * Called by a caller of {@link #createPackageFromPreprocessingAst} after this caller has fully
+   * loaded the package.
+   */
+  public void afterDoneLoadingPackage(Package pkg) {
+    packageBuilderHelper.onLoadingComplete(pkg);
   }
 
   /**

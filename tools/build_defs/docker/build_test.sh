@@ -170,7 +170,7 @@ function check_layers_aux() {
     local listing="$(tar xOf "${test_data}" "./${layer}/layer.tar" | tar tv)"
 
     # Check that all files in the layer, if any, have the magic timestamp
-    check_eq "$(echo "${listing}" | grep -Fv "${MAGIC_TIMESTAMP}")" ""
+    check_eq "$(echo "${listing}" | grep -Fv "${MAGIC_TIMESTAMP}" || true)" ""
 
     check_id "${input}" "${layer}" "\"${layer}\""
 

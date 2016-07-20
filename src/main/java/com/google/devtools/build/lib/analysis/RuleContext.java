@@ -390,7 +390,7 @@ public final class RuleContext extends TargetContext
   }
 
   public ImmutableList<Artifact> getBuildInfo(BuildInfoKey key) {
-    return getAnalysisEnvironment().getBuildInfo(this, key);
+    return getAnalysisEnvironment().getBuildInfo(this, key, getConfiguration());
   }
 
   @VisibleForTesting
@@ -459,7 +459,8 @@ public final class RuleContext extends TargetContext
    * <p>If the name of the attribute starts with <code>$</code>
    * it is replaced with a string <code>(an implicit dependency)</code>.
    */
-  public void throwWithAttributeError(String attrName, String message) throws RuleErrorException {
+  public RuleErrorException throwWithAttributeError(String attrName, String message)
+      throws RuleErrorException {
     reporter.attributeError(attrName, message);
     throw new RuleErrorException();
   }
@@ -527,6 +528,24 @@ public final class RuleContext extends TargetContext
    */
   public Artifact getPackageRelativeArtifact(String relative, Root root) {
     return getPackageRelativeArtifact(new PathFragment(relative), root);
+  }
+
+  /**
+   * Creates an artifact in a directory that is unique to the package that contains the rule, thus
+   * guaranteeing that it never clashes with artifacts created by rules in other packages.
+   */
+  public Artifact getBinArtifact(String relative) {
+    return getPackageRelativeArtifact(
+        new PathFragment(relative), getConfiguration().getBinDirectory());
+  }
+
+  /**
+   * Creates an artifact in a directory that is unique to the package that contains the rule, thus
+   * guaranteeing that it never clashes with artifacts created by rules in other packages.
+   */
+  public Artifact getGenfilesArtifact(String relative) {
+    return getPackageRelativeArtifact(
+        new PathFragment(relative), getConfiguration().getGenfilesDirectory());
   }
 
   /**
@@ -625,6 +644,28 @@ public final class RuleContext extends TargetContext
       return result;
     }
     return aspectAttributes.get(attributeName);
+  }
+
+  /**
+   * Returns the dependencies through a {@code LABEL_DICT_UNARY} attribute as a map from
+   * a string to a {@link TransitiveInfoCollection}.
+   */
+  public Map<String, TransitiveInfoCollection> getPrerequisiteMap(String attributeName) {
+    Attribute attributeDefinition = getAttribute(attributeName);
+    Preconditions.checkState(attributeDefinition.getType() == BuildType.LABEL_DICT_UNARY);
+
+    ImmutableMap.Builder<String, TransitiveInfoCollection> result = ImmutableMap.builder();
+    Map<String, Label> dict = attributes().get(attributeName, BuildType.LABEL_DICT_UNARY);
+    Map<Label, ConfiguredTarget> labelToDep = new HashMap<>();
+    for (ConfiguredTarget dep : targetMap.get(attributeName)) {
+      labelToDep.put(dep.getLabel(), dep);
+    }
+
+    for (Map.Entry<String, Label> entry : dict.entrySet()) {
+      result.put(entry.getKey(), Preconditions.checkNotNull(labelToDep.get(entry.getValue())));
+    }
+
+    return result.build();
   }
 
   /**
@@ -1284,6 +1325,13 @@ public final class RuleContext extends TargetContext
   }
 
   /**
+   * Returns true if the target for this context is a test target.
+   */
+  public boolean isTestTarget() {
+    return TargetUtils.isTestRule(getTarget());
+  }
+
+  /**
    * Returns true if runfiles support should create the runfiles tree, or
    * false if it should just create the manifest.
    */
@@ -1298,7 +1346,7 @@ public final class RuleContext extends TargetContext
     //  b. host tools could potentially use data files, but currently don't
     //     (they're run from the execution root, not a runfiles tree).
     //     Currently hostConfiguration.buildRunfiles() returns true.
-    if (TargetUtils.isTestRule(getTarget())) {
+    if (isTestTarget()) {
       // Tests are only executed during testing (duh),
       // and their runfiles are generated lazily on local
       // execution (see LocalTestStrategy). Therefore, it

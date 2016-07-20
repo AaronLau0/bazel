@@ -30,6 +30,16 @@ function set_up() {
   copy_examples
   setup_objc_test_support
 
+  # Find where Xcode 7 (any sub-version will do) is located and get the iOS SDK
+  # version it contains.
+  # TODO(b/27267941): This is a hack until the bug is fixed.
+  XCODE_LOCATOR="$(bazel info output_base)/external/bazel_tools/tools/objc/xcode-locator"
+  XCODE_INFO=$($XCODE_LOCATOR -v | grep -m1 7)
+  XCODE_DIR=$(echo $XCODE_INFO | cut -d ':' -f3)
+  XCODE_VERSION=$(echo $XCODE_INFO | cut -d ':' -f1)
+  IOS_SDK_VERSION=$(DEVELOPER_DIR=$XCODE_DIR xcodebuild -sdk -version \
+      | grep iphonesimulator | cut -d ' '  -f6)
+
   # Allow access to //external:xcrunwrapper.
   rm WORKSPACE
   ln -sv ${workspace_file} WORKSPACE
@@ -97,15 +107,16 @@ EOF
 function test_swift_library() {
   local swift_lib_pkg=examples/swift
   assert_build_output ./bazel-genfiles/${swift_lib_pkg}/examples_swift_swift_lib.a \
-      ${swift_lib_pkg}:swift_lib --ios_sdk_version=$IOS_SDK_VERSION
+      ${swift_lib_pkg}:swift_lib --ios_sdk_version=$IOS_SDK_VERSION --xcode_version=$XCODE_VERSION
   assert_build_output ./bazel-genfiles/${swift_lib_pkg}/examples_swift_swift_lib.swiftmodule \
-      ${swift_lib_pkg}:swift_lib --ios_sdk_version=$IOS_SDK_VERSION
+      ${swift_lib_pkg}:swift_lib --ios_sdk_version=$IOS_SDK_VERSION --xcode_version=$XCODE_VERSION
 }
 
 function test_build_app() {
   make_app
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
+      --xcode_version=$XCODE_VERSION \
       //ios:app >$TEST_log 2>&1 || fail "should pass"
   ls bazel-bin/ios/app.ipa || fail "should generate app.ipa"
 }
@@ -146,6 +157,7 @@ objc_binary(name = "bin",
 EOF
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
+      --xcode_version=$XCODE_VERSION \
       //ios:bin >$TEST_log 2>&1 || fail "should build"
 }
 
@@ -166,6 +178,15 @@ EOF
 
   cat >ios/ObjcClass.h <<EOF
 #import <Foundation/Foundation.h>
+
+#if !DEFINE_FOO
+#error "Define is not passed in"
+#endif
+
+#if !COPTS_FOO
+#error "Copt is not passed in
+#endif
+
 @interface ObjcClass : NSObject
 - (NSString *)foo;
 @end
@@ -187,12 +208,15 @@ swift_library(name = "swift_lib",
 
 objc_library(name = "ObjcLib",
              hdrs = ['ObjcClass.h'],
-             srcs = ['ObjcClass.m'])
+             srcs = ['ObjcClass.m'],
+             defines = ["DEFINE_FOO=1"])
 EOF
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
-      --experimental_objc_enable_module_maps \
+      --objccopt=-DCOPTS_FOO=1 -s \
+      --xcode_version=$XCODE_VERSION \
       //ios:swift_lib >$TEST_log 2>&1 || fail "should build"
+  expect_log "-module-cache-path bazel-out/local-fastbuild/genfiles/_objc_module_cache"
 }
 
 function test_swift_import_objc_framework() {
@@ -237,7 +261,7 @@ objc_framework(name = "dylib",
 EOF
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
-      --ios_minimum_os=8.0 \
+      --ios_minimum_os=8.0 --xcode_version=$XCODE_VERSION \
       //ios:swift_lib >$TEST_log 2>&1 || fail "should build"
 }
 
@@ -277,7 +301,10 @@ int main() {
 EOF
 
   bazel build --verbose_failures //package:lipo_out  \
-    --ios_multi_cpus=i386,x86_64 || fail "should build apple_binary and obtain info via lipo"
+    --ios_multi_cpus=i386,x86_64 \
+    --xcode_version=$XCODE_VERSION \
+    --ios_sdk_version=$IOS_SDK_VERSION \
+    || fail "should build apple_binary and obtain info via lipo"
 
   cat bazel-genfiles/package/lipo_out | grep "i386 x86_64" \
     || fail "expected output binary to contain 2 architectures"
@@ -315,6 +342,8 @@ EOF
 
   bazel build --verbose_failures //package:extract_archives  \
     --ios_multi_cpus=i386,x86_64 \
+    --xcode_version=$XCODE_VERSION \
+    --ios_sdk_version=$IOS_SDK_VERSION \
     || fail "should build multi-architecture archive"
 
   assert_contains "x86_64.*archive" bazel-genfiles/package/info_x86_64
@@ -355,17 +384,26 @@ swift_library(name = "util",
 EOF
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
+      --xcode_version=$XCODE_VERSION \
       //ios:swift_lib >$TEST_log 2>&1 || fail "should build"
 }
 
 function test_swift_tests() {
   make_app
 
+  cat >ios/internal.swift <<EOF
+internal class InternalClass {
+  func foo() -> String { return "bar" }
+}
+EOF
+
   cat >ios/tests.swift <<EOF
   import XCTest
+  @testable import ios_SwiftMain
 
 class FooTest: XCTestCase {
   func testFoo() { XCTAssertEqual(2, 3) }
+  func testInternalClass() { XCTAssertEqual(InternalClass().foo(), "bar") }
 }
 EOF
 
@@ -373,7 +411,7 @@ EOF
 load("//tools/build_defs/apple:swift.bzl", "swift_library")
 
 swift_library(name = "SwiftMain",
-              srcs = ["app.swift"])
+              srcs = ["app.swift", "internal.swift"])
 
 objc_binary(name = "bin",
             srcs = ["//tools/objc:dummy.c"],
@@ -384,7 +422,8 @@ ios_application(name = "app",
                 infoplist = 'App-Info.plist')
 
 swift_library(name = "SwiftTest",
-              srcs = ["tests.swift"])
+              srcs = ["tests.swift"],
+              deps = [":SwiftMain"])
 
 ios_test(name = "app_test",
          srcs = ["//tools/objc:dummy.c"],
@@ -393,6 +432,7 @@ ios_test(name = "app_test",
 EOF
 
   bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION \
+      --xcode_version=$XCODE_VERSION \
       //ios:app_test >$TEST_log 2>&1 || fail "should build"
 
   otool -lv bazel-bin/ios/app_test_bin \
@@ -403,6 +443,37 @@ EOF
       | grep @loader_path/Frameworks -sq \
       || fail "expected test binary to contain @loader_path in LC_RPATH"
 
+}
+
+function test_swift_compilation_mode_flags() {
+  rm -rf ios
+  mkdir -p ios
+
+  cat >ios/debug.swift <<EOF
+// A trick to break compilation when DEBUG is not set.
+func foo() {
+  #if DEBUG
+  var x: Int
+  #endif
+  x = 3
+}
+EOF
+
+  cat >ios/BUILD <<EOF
+load("//tools/build_defs/apple:swift.bzl", "swift_library")
+
+swift_library(name = "swift_lib",
+              srcs = ["debug.swift"])
+EOF
+
+  ! bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION -c opt \
+      --xcode_version=$XCODE_VERSION \
+      //ios:swift_lib >$TEST_log 2>&1 || fail "should not build"
+  expect_log "error: use of unresolved identifier 'x'"
+
+  bazel build --verbose_failures --ios_sdk_version=$IOS_SDK_VERSION -c dbg \
+      --xcode_version=$XCODE_VERSION \
+      //ios:swift_lib >$TEST_log 2>&1 || fail "should build"
 }
 
 run_suite "apple_tests"
