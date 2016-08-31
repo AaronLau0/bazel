@@ -417,17 +417,6 @@ java_import(
 )
 
 java_import(
-    name = "protobuf",
-    jars = ["protobuf/protobuf-java-3.0.0-beta-2.jar"],
-)
-
-# For bootstrapping JavaBuilder
-filegroup(
-    name = "protobuf-jars",
-    srcs = ["protobuf/protobuf-java-3.0.0-beta-2.jar"],
-)
-
-java_import(
     name = "slf4j",
     jars = [
         "slf4j/slf4j-api-1.7.7.jar",
