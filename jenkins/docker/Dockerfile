@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
   time \
   wget \
   openjdk-8-jdk \
-  pkg-confg \
+  pkgconf \
   debhelper \
   unzip \
   zip \
